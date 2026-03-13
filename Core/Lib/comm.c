@@ -38,7 +38,6 @@ void update_tx_buffer ()
 			huart1.gState = HAL_UART_STATE_READY;
 			__HAL_UART_CLEAR_FLAG(&huart1, UART_FLAG_TC);
 			HAL_UART_Transmit_DMA(&huart1, (uint8_t*)tx_buffer, TXBUFFERSIZE);
-//	}
 }
 
 
@@ -75,9 +74,6 @@ void process_rx_buffer()
 	v_right_2B= ((int8_t)rxb_aligned[3] << 8 | rxb_aligned[2]);
 	v_left_comm = (float)(v_left_2B >> 14);
 	v_right_comm = (float)(v_right_2B >> 14);
-
-//	phi = ((int8_t)rxb_aligned[5] << 8 | rxb_aligned[4])/phi_conversion;
-	// TODO: iz rxba idu upravljacki signali za motore
 
 }
 

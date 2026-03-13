@@ -47,7 +47,7 @@ pwm_right(float vel);
 void
 set_motor_l_dir(int8_t dir);
 void
-set_motor_r_dir (int8_t dir);
+set_motor_r_dir(int8_t dir);
 // odometry.h
 void
 odometry_init();
@@ -68,21 +68,68 @@ get_w();
 void
 wrap180(volatile double *signal);
 void
-wrap2Pi (volatile double *signal);
+wrap2Pi(volatile double *signal);
+double clamp(double signal, double min, double max);
+double correct_param(double param, double error, double eta, double min,
+		double max);
+unsigned char stacked(double time_limit, double v, double v_min, double freq,
+		unsigned *cnt);
+double velocity_synthesis(double distance, double velocity, double acceleration,
+		double J_MAX, double stopping_distance, double v_max, double v_min,
+		double dt, double v0, unsigned slowdown_status, double v_slowed_max);
+double synthesis_v(double velocity, double acceleration, double a_step,
+		double v_des, double dt, double v0);
+double wrap(double signal, double min, double max);
+void wrap_ptr(double *signal, double min, double max);
+short get_sign(double num);
+double scale_vel_ref(volatile double *ref_1, volatile double *ref_2,
+		double limit);
+double abs_max(double a, double b);
+double abs_min(double a, double b);
+unsigned long unsigned_min(unsigned long a, unsigned long b);
+void vel_ramp_up_ptr(double *signal, double reference, double acc);
+double vel_ramp_up(double signal, double reference, double acc);
+double vel_s_curve_up_webots(double *vel, double prev_vel, double vel_ref,
+		double jerk);
+double vel_s_curve_up(double vel, double accel, double vel_ref, double jerk);
+double min3(double a, double b, double c);
+double snap_angle(double angle, double step);
+double snap_ortho_deg(double phi);
 
 //motorControl.h
 double calculate_control(double ref, double y);
 
 // comm.h
-void comm_init();
-void update_tx_buffer();
+void
+update_tx_buffer();
+void
+comm_init();
+void
+process_rx_buffer();
 
-// comm.h
-void
-update_tx_buffer ();
-void
-comm_init ();
-void
-process_rx_buffer ();
+// control.h
+void control_loop();
+void move_init();
+double get_v_r();
+double get_v_l();
+typedef struct goal_struct {
+	int8_t type;
+	double x;
+	double y;
+	double phi;
+	int8_t direction;
+	double v_max;
+	double w_max;
+	double distance_tolerance_percentage;
+	double angle_tolerance_percentage;
+	double start_coeff_v;
+	double start_coeff_w;
+	double stop_coeff_v;
+	double stop_coeff_w;
+	int8_t status; // -1 = success; -2 = canceled; -3 = interrupted; -4 = timed out
+	double distance_remaininig;
+	double angle_remaining;
+} goal_type;
+void move_goal(goal_type *goal);
 
 #endif /* LIB_LIB_H_ */
