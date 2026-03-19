@@ -43,16 +43,16 @@ void pwm_right(float vel) {
 void set_motor_l_dir(int8_t dir) {
 	switch (dir) {
 	case 1:
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, 0);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, 1);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 0);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, 1);
 		break;
 	case -1:
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, 0);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, 1);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 1);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, 0);
 		break;
 	case 0:
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, 0);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, 0);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 0);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, 0);
 		break;
 	}
 }
@@ -60,16 +60,16 @@ void set_motor_l_dir(int8_t dir) {
 void set_motor_r_dir(int8_t dir) {
 	switch (dir) {
 	case 1:
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11, 0);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, 1);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 0);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, 1);
 		break;
 	case -1:
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, 0);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11, 1);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 1);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, 0);
 		break;
 	case 0:
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, 0);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11, 0);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 0);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, 0);
 		break;
 	}
 }
