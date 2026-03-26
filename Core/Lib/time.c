@@ -23,7 +23,7 @@ void time_ISR()	// poziva se u stm32f4xx_it.c, na 1ms
 	update_odom();
 	control_loop();
 //	vl = vel_dbg;
-//	vr = vel_dbg;
+//	vr = -vel_dbg;
 //	pwm_left(vl);
 //	pwm_right(vr);
 

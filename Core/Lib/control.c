@@ -13,7 +13,7 @@ static void go_to_xy();
 static void reset_goal(goal_type *goal_ptr);
 static void velocity_loop();
 
-double V_MIN_, V_MAX_, W_MIN_, W_MAX_;
+double V_MIN_, V_MAX_, W_MIN_, W_MAX_, V_MIN_ACC_, W_MIN_ACC_;
 double L_, L_MIN_, L_MAX_;
 double STACKED_TIME_;
 double D_TOL_, D_LONG_TOL_, D_PROJ_TOL_, D_SHORT_TOL_;
@@ -56,8 +56,10 @@ void move_init() {
 	dt_ = 0.001;
 	V_MIN_ = 0.1;
 	V_MAX_ = 1.5;
+	V_MIN_ACC_ = 0.6;
 	W_MIN_ = 0.314;
-	W_MAX_ = 9.42;
+	W_MAX_ = 12.57;
+	W_MIN_ACC_ = 3.14;
 	V_SLOWED_MAX_ = 0.75;
 	MOTOR_V_MAX_ = 2.0;
 	L_ = 0.1545;
@@ -67,8 +69,8 @@ void move_init() {
 	P_w_ = 2.0;
 	J_MAX_ = 25.0;
 	J_MAX_STOP_ = 50.0;
-	J_ROT_MAX_ = 500.0;
-	J_ROT_MAX_STOP_ = 1000.0;
+	J_ROT_MAX_ = 800.0;
+	J_ROT_MAX_STOP_ = 800.0;
 	D_TOL_ = 0.005; // absolute distance from target
 	D_PROJ_TOL_ = 0.0025; // projected distance from target
 	D_LONG_TOL_ = 0.1; // distance before rotation is used fully
@@ -80,8 +82,8 @@ void move_init() {
 	j_max_temp_ = J_MAX_;
 	j_rot_max_temp_ = J_ROT_MAX_;
 
-	init_pid(&v_loop, 4.0, 0.0, 0.0, 1680, 1680);
-	init_pid(&w_loop, 4.0, 0.0, 0.0, 1680, 1680);
+	init_pid(&v_loop, 16.0, 0.0, 0.0, 1680, 1680);
+	init_pid(&w_loop, 20.0, 0.02, 0.0, 1680, 840);
 }
 
 void control_loop() {
@@ -125,9 +127,7 @@ static void velocity_loop()
 	// izlaz pwm
 	v_right_ = v_ctrl_ + w_ctrl_ * L_ * 0.5;
 	v_left_ = v_ctrl_ - w_ctrl_ * L_ * 0.5;
-	double scale_factor = scale_vel_ref(&v_right_, &v_left_, MOTOR_V_MAX_);
-	v_right_ *= scale_factor;
-	v_left_ *= scale_factor;
+	scale_vel_ref(&v_right_, &v_left_, MOTOR_V_MAX_);
 	pwm_right(v_right_);
 	pwm_left(v_left_);
 }
@@ -161,7 +161,7 @@ static void rotate() {
 	}
 	v_ref_ = 0;
 	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
-			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0);
+			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0, W_MIN_ACC_);
 	if (fabs(phi_error_) < PHI_TOL_ * phi_tol_perc_) {
 		reset_movement();
 		movement_state_ = -1;
@@ -200,7 +200,7 @@ static void go_to_xy() {
 		v_ref_ = 0;
 		w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_,
 				j_rot_max_temp_, stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0,
-				0, 0.0);
+				0, 0.0, W_MIN_ACC_);
 		if (fabs(phi_error_) < PHI_TOL_) {
 			reg_phase_ = 2;
 			w_max_temp_ = W_MAX_;
@@ -235,7 +235,7 @@ static void go_to_xy() {
 		}
 		v_ref_ = velocity_synthesis(distance_proj_ * direction_, v_base_, a_,
 				j_max_temp_, stopping_distance_, v_max_temp_, V_MIN_, dt_, v0_,
-				obstacle_, V_SLOWED_MAX_);
+				obstacle_, V_SLOWED_MAX_, V_MIN_ACC_);
 		w_ref_ = P_w_
 				* clamp(
 						(distance_ - D_SHORT_TOL_)

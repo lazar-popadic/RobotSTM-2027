@@ -47,7 +47,7 @@ unsigned char stacked(double time_limit, double v, double v_min, double freq, un
 
 double velocity_synthesis(double distance, double velocity, double acceleration, double J_MAX, double stopping_distance,
                           double v_max, double v_min, double dt, double v0, unsigned slowdown_status,
-                          double v_slowed_max)
+                          double v_slowed_max, double v_min_acc)
 {
     if (dt <= 0.0)
         return 0.0;
@@ -72,16 +72,17 @@ double velocity_synthesis(double distance, double velocity, double acceleration,
         break;
     }
 
-    if (abs_distance < stopping_distance)
+    if (abs_distance < stopping_distance*1.1)
     {
         double x = abs_distance / stopping_distance;
         abs_v_ref = v_des * (35.0f * pow(x, 4) - 84.0f * pow(x, 5) + 70.0f * pow(x, 6) - 20.0f * pow(x, 7));
+        abs_v_ref = clamp(abs_v_ref, v_min, v_max);
     }
     else
     {
         abs_v_ref = synthesis_v(abs_velocity, abs_acceleration, a_step, v_des, dt, abs_v0);
+        abs_v_ref = clamp(abs_v_ref, v_min_acc, v_max);
     }
-    abs_v_ref = clamp(abs_v_ref, v_min, v_max);
     return clamp(get_sign(distance) * abs_v_ref, -v_max, v_max);
 }
 

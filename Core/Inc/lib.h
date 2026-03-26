@@ -121,7 +121,7 @@ unsigned char stacked(double time_limit, double v, double v_min, double freq,
 		unsigned *cnt);
 double velocity_synthesis(double distance, double velocity, double acceleration,
 		double J_MAX, double stopping_distance, double v_max, double v_min,
-		double dt, double v0, unsigned slowdown_status, double v_slowed_max);
+		double dt, double v0, unsigned slowdown_status, double v_slowed_max, double v_min_acc);
 double synthesis_v(double velocity, double acceleration, double a_step,
 		double v_des, double dt, double v0);
 double wrap(double signal, double min, double max);

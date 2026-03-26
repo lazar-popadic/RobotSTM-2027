@@ -26,7 +26,8 @@ volatile static uint8_t idx = 0;
 volatile float x, y, phi;
 
 volatile goal_type rx_goal;
-double x_dbg = 1.0, y_dbg = 0.0, phi_dbg = 0.0;
+double x_dbg = 1.0, y_dbg = 0.0, phi_dbg = -0.785;
+int8_t type_dbg = -1;
 /*
  * ROS2 -> STM32:
  * 40B:
@@ -102,7 +103,8 @@ void update_tx_buffer() {
 		tx_buffer[i] = 0xFF;
 
 // XXX: slanje cilja za kretnju, za testiranje
-	tx_buffer[8] = 1;
+	// prvo metar
+	tx_buffer[8] = type_dbg;
 	memcpy(&tx_buffer[9], &x_dbg, sizeof(double));
 	memcpy(&tx_buffer[17], &y_dbg, sizeof(double));
 	memcpy(&tx_buffer[25], &phi_dbg, sizeof(double));
@@ -111,7 +113,6 @@ void update_tx_buffer() {
 	tx_buffer[35] = 94;     // w_max_10
 	tx_buffer[36] = 0xff; 	// tol_perc_16
 	tx_buffer[37] = 0xff; 	// start/stop coeffs = 1
-	// checksum over payload bytes (8→37)
 
 //	tx_buffer[8] = rx_goal.status;
 //	int32_t x = (int32_t)(get_x() * 10000.0);
@@ -126,6 +127,7 @@ void update_tx_buffer() {
 //	memcpy(&tx_buffer[25], &w, sizeof(int32_t));
 //	memset(&tx_buffer[29], 0, 9);
 
+	// checksum over payload bytes (8→37)
 	uint16_t cksum = fletcher16(&tx_buffer[8], 30);
 	tx_buffer[38] = cksum & 0xFF;
 	tx_buffer[39] = cksum >> 8;
