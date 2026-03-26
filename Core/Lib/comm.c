@@ -26,7 +26,7 @@ volatile static uint8_t idx = 0;
 volatile float x, y, phi;
 
 volatile goal_type rx_goal;
-double x_dbg = 0.0, y_dbg = 1.5, phi_dbg = 1.5708;
+double x_dbg = -1.0, y_dbg = 0.0, phi_dbg = 1.5708;
 int8_t type_dbg = 1;
 /*
  * ROS2 -> STM32:

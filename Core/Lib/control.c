@@ -51,14 +51,14 @@ volatile pid v_loop, w_loop;
 
 void move_init() {
 // TODO: vrati na 0.5 ili manje
-	STACKED_TIME_ = 100.0;
+	STACKED_TIME_ = 2.0;
 
 	dt_ = 0.001;
 	V_MIN_ = 0.05;
-	V_MAX_ = 2.0;
+	V_MAX_ = 1.5;
 	V_MIN_ACC_ = 0.5;
 	W_MIN_ = 0.314;
-	W_MAX_ = 12.57;
+	W_MAX_ = 9.42;
 	W_MIN_ACC_ = 3.14;
 	V_SLOWED_MAX_ = 0.75;
 	MOTOR_V_MAX_ = 2.0;
@@ -66,15 +66,15 @@ void move_init() {
 	L_MAX_ = 0.1935;
 	L_MIN_ = 0.1155;
 	eta_ = 0.01;
-	P_w_ = 16.0;
-	J_MAX_ = 32.0;
-	J_MAX_STOP_ = 24.0;
-	J_ROT_MAX_ = 800.0;
-	J_ROT_MAX_STOP_ = 800.0;
-	D_TOL_ = 0.005; // absolute distance from target
+	P_w_ = 15.0;
+	J_MAX_ = 20.0;
+	J_MAX_STOP_ = 20.0;
+	J_ROT_MAX_ = 60.0;
+	J_ROT_MAX_STOP_ = 60.0;
+	D_TOL_ = 0.01; // absolute distance from target
 	D_PROJ_TOL_ = 0.005; // projected distance from target
-	D_LONG_TOL_ = 0.2; // distance before rotation is used fully
-	D_SHORT_TOL_ = 0.1; // minimal distance for rotation during translation
+	D_LONG_TOL_ = 0.1; // distance before rotation is used fully
+	D_SHORT_TOL_ = 0.04; // minimal distance for rotation during translation
 	PHI_TOL_ = 0.0157; // absolute angle from target
 
 	v_max_temp_ = V_MAX_;
@@ -82,8 +82,8 @@ void move_init() {
 	j_max_temp_ = J_MAX_;
 	j_rot_max_temp_ = J_ROT_MAX_;
 
-	init_pid(&v_loop, 10.0, 0.01, 0.0, 1680, 840);
-	init_pid(&w_loop, 20.0, 0.02, 0.0, 1680, 840);
+	init_pid(&v_loop, 12.0, 0.01, 0.0, 1680, 420);
+	init_pid(&w_loop, 16.0, 0.02, 0.0, 1680, 560);
 }
 
 void control_loop() {
@@ -116,8 +116,7 @@ void control_loop() {
 	prev_w_ = w_base_;
 }
 
-static void velocity_loop()
-{
+static void velocity_loop() {
 	// ulaz: referenca za brzine levog i desnog: v_ref_, w_ref_
 	double v_err = v_ref_ - get_v();
 	double w_err = w_ref_ - get_w();
@@ -201,7 +200,7 @@ static void go_to_xy() {
 		w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_,
 				j_rot_max_temp_, stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0,
 				0, 0.0, W_MIN_ACC_);
-		if (fabs(phi_error_) < PHI_TOL_) {
+		if (fabs(phi_error_) < PHI_TOL_ && fabs(get_w()) < W_MIN_ * 2.0) {
 			reg_phase_ = 2;
 			w_max_temp_ = W_MAX_;
 		}
@@ -243,10 +242,14 @@ static void go_to_xy() {
 				* phi_error_;
 
 		obstacle_dir_ = get_sign(v_ref_);
-		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_
-				&& fabs(distance_) < D_TOL_ * d_tol_perc_) {
-			reset_movement();
-			movement_state_ = -1;
+		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_) {
+			if (fabs(distance_) < D_TOL_ * d_tol_perc_) {
+				reset_movement();
+				movement_state_ = -1;
+			} else {
+				reset_movement();
+				movement_state_ = -4;
+			}
 		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_
 				&& fabs(w_base_) < W_MIN_) {
 			reset_movement();
