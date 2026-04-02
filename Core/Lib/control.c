@@ -10,8 +10,10 @@
 static void reset_movement();
 static void rotate();
 static void go_to_xy();
-static void reset_goal(goal_type *goal_ptr);
+void reset_goal(goal_type *goal_ptr);
 static void velocity_loop();
+
+uint8_t set_goal_reset = 0;
 
 double V_MIN_, V_MAX_, W_MIN_, W_MAX_, V_MIN_ACC_, W_MIN_ACC_;
 double L_, L_MIN_, L_MAX_;
@@ -48,6 +50,11 @@ double P_w_;
 unsigned stacked_cnt_ = 0;
 double V_SLOWED_MAX_ = 0.75;
 volatile pid v_loop, w_loop;
+
+uint8_t get_set_goal_reset()
+{
+	return set_goal_reset;
+}
 
 void move_init() {
 // TODO: vrati na 0.5 ili manje
@@ -162,7 +169,6 @@ static void rotate() {
 	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
 			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0, W_MIN_ACC_);
 	if (fabs(phi_error_) < PHI_TOL_ * phi_tol_perc_) {
-		reset_movement();
 		movement_state_ = -1;
 	}
 }
@@ -244,19 +250,15 @@ static void go_to_xy() {
 		obstacle_dir_ = get_sign(v_ref_);
 		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_) {
 			if (fabs(distance_) < D_TOL_ * d_tol_perc_) {
-				reset_movement();
 				movement_state_ = -1;
 			} else {
-				reset_movement();
 				movement_state_ = -4;
 			}
 		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_
 				&& fabs(w_base_) < W_MIN_) {
-			reset_movement();
 			movement_state_ = -4;
 		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_, 1.0 / dt_,
 				&stacked_cnt_)) {
-			reset_movement();
 			movement_state_ = -3;
 		}
 		break;
@@ -266,12 +268,15 @@ static void go_to_xy() {
 void move_goal(goal_type *goal) {
 	uint8_t new_obstacle = goal->obstacle;
 	if (new_obstacle != obstacle_)
-	  obstacle_status_changed_ = 1;
+		obstacle_status_changed_ = 1;
 	else
-	  obstacle_status_changed_ = 0;
+		obstacle_status_changed_ = 0;
 	obstacle_ = new_obstacle;
+	if (goal->type == 0) {
+		return;
+	}
 	goal->status = movement_state_;
-	if (goal->status < 0)
+	if (goal->status < 0) // TODO: ovo treba da resetuje nakon sto posalje -1, ili treba da moze da dobije kretnju i kad je zavrsena
 		reset_goal(goal);
 	else if (goal->status == 0) {
 		x_base_ = get_x();
@@ -340,7 +345,8 @@ void move_goal(goal_type *goal) {
 	}
 }
 
-static void reset_goal(goal_type *goal_ptr) {
+void reset_goal(goal_type *goal_ptr) {
+	reset_movement();
 	goal_ptr->type = 0;
 	goal_ptr->x = get_x();
 	goal_ptr->y = get_y();
@@ -354,7 +360,7 @@ static void reset_goal(goal_type *goal_ptr) {
 	goal_ptr->start_coeff_w = 1.0;
 	goal_ptr->stop_coeff_v = 1.0;
 	goal_ptr->stop_coeff_w = 1.0;
-	goal_ptr->status = 0;
+//	goal_ptr->status = 0;
 }
 
 static void reset_movement() {

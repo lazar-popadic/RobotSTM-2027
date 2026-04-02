@@ -159,5 +159,7 @@ void move_init();
 double get_v_r();
 double get_v_l();
 void move_goal(goal_type *goal);
+uint8_t get_set_goal_reset();
+void reset_goal(goal_type *goal_ptr);
 
 #endif /* LIB_LIB_H_ */

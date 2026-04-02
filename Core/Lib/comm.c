@@ -60,7 +60,7 @@ int8_t type_dbg = 1;
  */
 
 void process_rx_buffer() {
-	if (rx_goal.status != 0)
+	if (rx_goal.status > 0)
 		return;
 
 	if (!create_rxba())
@@ -70,7 +70,7 @@ void process_rx_buffer() {
 	uint16_t calculated_checksum = fletcher16(rxba, 30);
 	if (received_checksum != calculated_checksum) {
 		// checksum failed
-		return;
+//		return;
 	}
 	rx_goal.type = rxba[0];
 
@@ -193,4 +193,6 @@ void comm_init() {
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 //    HAL_UART_Receive_DMA(&huart1, (uint8_t *)rx_buffer, RXBUFFERSIZE);
 	process_rx_buffer();
+//	if (get_set_goal_reset())
+//		reset_goal(&rx_goal);
 }
