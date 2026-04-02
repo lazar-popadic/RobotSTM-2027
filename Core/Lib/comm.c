@@ -24,10 +24,11 @@ volatile double phi_conversion;
 volatile static uint16_t sync = 0;
 volatile static uint8_t idx = 0;
 volatile float x, y, phi;
-
+uint16_t prev_checksum = 0;
 volatile goal_type rx_goal;
 double x_dbg = -1.0, y_dbg = 0.0, phi_dbg = 1.5708;
 int8_t type_dbg = 1;
+static double PHI_TOL_ = 0.0314, D_TOL_ = 0.02;
 /*
  * ROS2 -> STM32:
  * 40B:
@@ -68,6 +69,9 @@ void process_rx_buffer() {
 
 	uint16_t received_checksum = rxba[30] | (rxba[31] << 8);
 	uint16_t calculated_checksum = fletcher16(rxba, 30);
+
+	if (prev_checksum == calculated_checksum)
+		return;
 	if (received_checksum != calculated_checksum) {
 		// checksum failed
 //		return;
@@ -78,7 +82,25 @@ void process_rx_buffer() {
 	memcpy(&rx_goal.y, &rxba[9], sizeof(double));
 	memcpy(&rx_goal.phi, &rxba[17], sizeof(double));
 
-	rx_goal.obstacle = (rxba[25]) && 0b111111;
+	double dx = rx_goal.x - get_x();
+	double dy = rx_goal.y - get_y();
+	double dist2 = dx*dx + dy*dy;
+
+	double dphi = rx_goal.phi - get_phi();
+	while (dphi > M_PI) dphi -= 2*M_PI;
+	while (dphi < -M_PI) dphi += 2*M_PI;
+
+	// Skip goal if already reached
+	if ((rx_goal.type == 1 && dist2 < D_TOL_ * D_TOL_) ||
+	    (rx_goal.type == -1 && fabs(dphi) < PHI_TOL_))
+	{
+	    return;
+	}
+	rx_goal.status = 0;
+
+	// TODO: vrati ovo (al ne radi sad)
+//	rx_goal.obstacle = (rxba[25]) && 0b111111;
+	rx_goal.obstacle = 0;
 	rx_goal.direction = (rxba[25]) >> 6;
 	uint8_t v_max_100 = rxba[26];
 	rx_goal.v_max = v_max_100 * 0.01;
@@ -93,6 +115,7 @@ void process_rx_buffer() {
 	rx_goal.start_coeff_w = (((coeff_byte >> 4) & 0b11) + 1) * 0.25;
 	rx_goal.stop_coeff_v = (((coeff_byte >> 2) & 0b11) + 1) * 0.25;
 	rx_goal.stop_coeff_w = (((coeff_byte) & 0b11) + 1) * 0.25;
+	prev_checksum = calculated_checksum;
 	return;
 }
 

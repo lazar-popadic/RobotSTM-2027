@@ -51,8 +51,7 @@ unsigned stacked_cnt_ = 0;
 double V_SLOWED_MAX_ = 0.75;
 volatile pid v_loop, w_loop;
 
-uint8_t get_set_goal_reset()
-{
+uint8_t get_set_goal_reset() {
 	return set_goal_reset;
 }
 
@@ -168,7 +167,8 @@ static void rotate() {
 	v_ref_ = 0;
 	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
 			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0, W_MIN_ACC_);
-	if (fabs(phi_error_) < PHI_TOL_ * phi_tol_perc_) {
+	if (fabs(phi_error_) < PHI_TOL_ * phi_tol_perc_
+			&& fabs(get_w()) < W_MIN_ * 2.0) {
 		movement_state_ = -1;
 	}
 }
@@ -248,7 +248,8 @@ static void go_to_xy() {
 				* phi_error_;
 
 		obstacle_dir_ = get_sign(v_ref_);
-		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_) {
+		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_ && fabs(v_base_) < V_MIN_ *2.0
+				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			if (fabs(distance_) < D_TOL_ * d_tol_perc_) {
 				movement_state_ = -1;
 			} else {
@@ -276,9 +277,10 @@ void move_goal(goal_type *goal) {
 		return;
 	}
 	goal->status = movement_state_;
-	if (goal->status < 0) // TODO: ovo treba da resetuje nakon sto posalje -1, ili treba da moze da dobije kretnju i kad je zavrsena
+	if (goal->status < 0)
 		reset_goal(goal);
 	else if (goal->status == 0) {
+		goal->status = 1;
 		x_base_ = get_x();
 		y_base_ = get_y();
 		phi_base_ = get_phi();
