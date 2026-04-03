@@ -66,6 +66,7 @@ double velocity_synthesis(double distance, double velocity, double acceleration,
         break;
     case 1:
         v_des = 0.0;
+        return 0;
         break;
     case 2:
         v_des = v_slowed_max;

@@ -120,6 +120,11 @@ void control_loop() {
 
 	prev_v_ = v_base_;
 	prev_w_ = w_base_;
+
+	if (fabs(get_v()) < V_MIN_)
+		obstacle_dir_ = 0;
+	else
+		obstacle_dir_ = get_sign(v_base_);
 }
 
 static void velocity_loop() {
@@ -247,8 +252,7 @@ static void go_to_xy() {
 								/ (D_LONG_TOL_ - D_SHORT_TOL_), 0.0, 1.0)
 				* phi_error_;
 
-		obstacle_dir_ = get_sign(v_ref_);
-		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_ && fabs(v_base_) < V_MIN_ *2.0
+		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_ && fabs(get_v()) < V_MIN_ *2.0
 				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			if (fabs(distance_) < D_TOL_ * d_tol_perc_) {
 				movement_state_ = -1;

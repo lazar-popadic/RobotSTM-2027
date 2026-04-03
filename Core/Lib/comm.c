@@ -61,10 +61,12 @@ static double PHI_TOL_ = 0.0314, D_TOL_ = 0.02;
  */
 
 void process_rx_buffer() {
-	if (rx_goal.status > 0)
+	if (!create_rxba())
 		return;
 
-	if (!create_rxba())
+	rx_goal.obstacle = (rxba[25]) & 0b011;
+
+	if (rx_goal.status > 0)
 		return;
 
 	uint16_t received_checksum = rxba[30] | (rxba[31] << 8);
@@ -98,9 +100,6 @@ void process_rx_buffer() {
 	}
 	rx_goal.status = 0;
 
-	// TODO: vrati ovo (al ne radi sad)
-//	rx_goal.obstacle = (rxba[25]) && 0b111111;
-	rx_goal.obstacle = 0;
 	uint8_t dir_bits = (rxba[25] >> 6) & 0b11;
 
 	if (dir_bits == 0b01)
@@ -181,29 +180,33 @@ static uint16_t fletcher16(uint8_t *data, size_t len) {
 
 	return (sum2 << 8) | sum1;
 }
-
 static uint8_t create_rxba() {
 	int start_index = -1;
 
-	for (int i = 0; i <= RXBUFFERSIZE - 8; i++) {
-		if (rx_buffer[i] == 0xFF && rx_buffer[i + 1] == 0xFF
-				&& rx_buffer[i + 2] == 0xFF && rx_buffer[i + 3] == 0xFF
-				&& rx_buffer[i + 4] == 0xFF && rx_buffer[i + 5] == 0xFF
-				&& rx_buffer[i + 6] == 0xFF && rx_buffer[i + 7] == 0xFF) {
-			start_index = i + 8;
+	for (int i = 0; i < RXBUFFERSIZE; i++) {
+		int found = 1;
+
+		for (int k = 0; k < 8; k++) {
+			if (rx_buffer[(i + k) % RXBUFFERSIZE] != 0xFF) {
+				found = 0;
+				break;
+			}
+		}
+
+		if (found) {
+			start_index = (i + 8) % RXBUFFERSIZE;
 			break;
 		}
 	}
+
 	if (start_index < 0)
 		return 0;
 
-	int first = 40 - start_index;
-	if (first >= 32)
-		memcpy(rxba, &rx_buffer[start_index], 32);
-	else {
-		memcpy(rxba, &rx_buffer[start_index], first);
-		memcpy(rxba + first, &rx_buffer[0], 32 - first);
+	// Copy 32 bytes with wrap
+	for (int i = 0; i < 32; i++) {
+		rxba[i] = rx_buffer[(start_index + i) % RXBUFFERSIZE];
 	}
+
 	return 1;
 }
 
