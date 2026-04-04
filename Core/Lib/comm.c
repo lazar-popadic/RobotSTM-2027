@@ -65,6 +65,7 @@ void process_rx_buffer() {
 		return;
 
 	rx_goal.obstacle = (rxba[25]) & 0b011;
+	rx_goal.type = rxba[0];
 
 	if (rx_goal.status > 0)
 		return;
@@ -112,6 +113,7 @@ void process_rx_buffer() {
 	rx_goal.v_max = v_max_100 * 0.01;
 	uint8_t w_max_10 = rxba[27];
 	rx_goal.w_max = w_max_10 * 0.1;
+	// TODO: ovde sam zapravo na pogresnu stranu racunao ovo, tako da za sad zanemari, pa ako treba ispravljaj
 	uint8_t tol_byte = rxba[28];
 	rx_goal.distance_tolerance_percentage = (((tol_byte >> 4) & 0b1111) + 1)
 			* 0.0625;

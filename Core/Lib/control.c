@@ -277,7 +277,10 @@ void move_goal(goal_type *goal) {
 	else
 		obstacle_status_changed_ = 0;
 	obstacle_ = new_obstacle;
+	// TODO: proveri da li radi
 	if (goal->type == 0) {
+		v_ref_ = 0;
+		w_ref_ = 0;
 		return;
 	}
 	goal->status = movement_state_;
