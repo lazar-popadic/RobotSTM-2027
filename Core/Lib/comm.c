@@ -66,9 +66,8 @@ void process_rx_buffer() {
 
 	rx_goal.obstacle = (rxba[25]) & 0b011;
 	rx_goal.type = rxba[0];
-
-	if (rx_goal.status > 0)
-		return;
+	if (rx_goal.type == 0)
+		reset_goal(&rx_goal);
 
 	uint16_t received_checksum = rxba[30] | (rxba[31] << 8);
 	uint16_t calculated_checksum = fletcher16(rxba, 30);
@@ -79,7 +78,9 @@ void process_rx_buffer() {
 		// checksum failed
 //		return;
 	}
-	rx_goal.type = rxba[0];
+
+	if (rx_goal.status > 0)
+		return;
 
 	memcpy(&rx_goal.x, &rxba[1], sizeof(double));
 	memcpy(&rx_goal.y, &rxba[9], sizeof(double));
@@ -87,28 +88,29 @@ void process_rx_buffer() {
 
 	double dx = rx_goal.x - get_x();
 	double dy = rx_goal.y - get_y();
-	double dist2 = dx*dx + dy*dy;
+	double dist2 = dx * dx + dy * dy;
 
 	double dphi = rx_goal.phi - get_phi();
-	while (dphi > M_PI) dphi -= 2*M_PI;
-	while (dphi < -M_PI) dphi += 2*M_PI;
+	while (dphi > M_PI)
+		dphi -= 2 * M_PI;
+	while (dphi < -M_PI)
+		dphi += 2 * M_PI;
 
 	// Skip goal if already reached
-	if ((rx_goal.type == 1 && dist2 < D_TOL_ * D_TOL_) ||
-	    (rx_goal.type == -1 && fabs(dphi) < PHI_TOL_))
-	{
-	    return;
+	if ((rx_goal.type == 1 && dist2 < D_TOL_ * D_TOL_)
+			|| (rx_goal.type == -1 && fabs(dphi) < PHI_TOL_)) {
+		return;
 	}
 	rx_goal.status = 0;
 
 	uint8_t dir_bits = (rxba[25] >> 6) & 0b11;
 
 	if (dir_bits == 0b01)
-	    rx_goal.direction = 1;
+		rx_goal.direction = 1;
 	else if (dir_bits == 0b10)
-	    rx_goal.direction = -1;
+		rx_goal.direction = -1;
 	else
-	    rx_goal.direction = 0;
+		rx_goal.direction = 0;
 	uint8_t v_max_100 = rxba[26];
 	rx_goal.v_max = v_max_100 * 0.01;
 	uint8_t w_max_10 = rxba[27];
@@ -123,7 +125,7 @@ void process_rx_buffer() {
 	rx_goal.start_coeff_w = (((coeff_byte >> 4) & 0b11) + 1) * 0.25;
 	rx_goal.stop_coeff_v = (((coeff_byte >> 2) & 0b11) + 1) * 0.25;
 	rx_goal.stop_coeff_w = (((coeff_byte) & 0b11) + 1) * 0.25;
-	prev_checksum = calculated_checksum;
+	prev_checksum = received_checksum;
 	return;
 }
 
@@ -148,11 +150,11 @@ void update_tx_buffer() {
 //	tx_buffer[37] = 0xff; 	// start/stop coeffs = 1
 
 	tx_buffer[8] = rx_goal.status;
-	int32_t x = (int32_t)(get_x() * 10000.0);
-	int32_t y = (int32_t)(get_y() * 10000.0);
-	int32_t phi = (int32_t)(get_phi() * 10000.0);
-	int32_t v = (int32_t)(get_v() * 10000.0);
-	int32_t w = (int32_t)(get_w() * 10000.0);
+	int32_t x = (int32_t) (get_x() * 10000.0);
+	int32_t y = (int32_t) (get_y() * 10000.0);
+	int32_t phi = (int32_t) (get_phi() * 10000.0);
+	int32_t v = (int32_t) (get_v() * 10000.0);
+	int32_t w = (int32_t) (get_w() * 10000.0);
 	memcpy(&tx_buffer[9], &x, sizeof(int32_t));
 	memcpy(&tx_buffer[13], &y, sizeof(int32_t));
 	memcpy(&tx_buffer[17], &phi, sizeof(int32_t));
@@ -165,10 +167,11 @@ void update_tx_buffer() {
 	tx_buffer[38] = cksum & 0xFF;
 	tx_buffer[39] = cksum >> 8;
 
-
 	huart1.gState = HAL_UART_STATE_READY;
 	__HAL_UART_CLEAR_FLAG(&huart1, UART_FLAG_TC);
 	HAL_UART_Transmit_DMA(&huart1, (uint8_t*) tx_buffer, TXBUFFERSIZE);
+	if (rx_goal.status < 0)
+		reset_goal(&rx_goal);
 }
 
 static uint16_t fletcher16(uint8_t *data, size_t len) {

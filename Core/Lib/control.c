@@ -64,23 +64,23 @@ void move_init() {
 	V_MAX_ = 1.5;
 	V_MIN_ACC_ = 0.5;
 	W_MIN_ = 0.314;
-	W_MAX_ = 9.42;
+	W_MAX_ = 12.57;
 	W_MIN_ACC_ = 3.14;
 	V_SLOWED_MAX_ = 0.75;
-	MOTOR_V_MAX_ = 2.0;
+	MOTOR_V_MAX_ = 1.6;
 	L_ = 0.1545;
 	L_MAX_ = 0.1935;
 	L_MIN_ = 0.1155;
 	eta_ = 0.01;
 	P_w_ = 15.0;
-	J_MAX_ = 20.0;
-	J_MAX_STOP_ = 20.0;
+	J_MAX_ = 10.0;
+	J_MAX_STOP_ = 10.0;
 	J_ROT_MAX_ = 60.0;
 	J_ROT_MAX_STOP_ = 60.0;
 	D_TOL_ = 0.01; // absolute distance from target
 	D_PROJ_TOL_ = 0.005; // projected distance from target
 	D_LONG_TOL_ = 0.1; // distance before rotation is used fully
-	D_SHORT_TOL_ = 0.04; // minimal distance for rotation during translation
+	D_SHORT_TOL_ = 0.02; // minimal distance for rotation during translation
 	PHI_TOL_ = 0.0157; // absolute angle from target
 
 	v_max_temp_ = V_MAX_;
@@ -113,6 +113,9 @@ void control_loop() {
 		break;
 	}
 
+	if (obstacle_ == 1)
+		v_ref_ = 0.0;
+
 	velocity_loop();
 
 	a_ = (v_base_ - prev_v_) / dt_;
@@ -121,10 +124,16 @@ void control_loop() {
 	prev_v_ = v_base_;
 	prev_w_ = w_base_;
 
-	if (fabs(get_v()) < V_MIN_)
-		obstacle_dir_ = 0;
+}
+
+static double vel_ramp(double signal, double reference, double acc) {
+	double err = reference - signal;
+
+	if (fabs(err) > acc)
+		signal += get_sign(err) * acc;
 	else
-		obstacle_dir_ = get_sign(v_base_);
+		signal = reference;
+	return signal;
 }
 
 static void velocity_loop() {
@@ -134,10 +143,16 @@ static void velocity_loop() {
 	v_ctrl_ = calc_pid(&v_loop, v_err);
 	w_ctrl_ = calc_pid(&w_loop, w_err);
 
+//	v_ctrl_ = vel_ramp(v_ctrl_, calc_pid(&v_loop, v_err), 0.05);
+//	w_ctrl_ = vel_ramp(w_ctrl_, calc_pid(&w_loop, w_err), 0.15);
+
 	// izlaz pwm
+//	v_right_ = vel_ramp(v_right_, v_ctrl_ + w_ctrl_ * L_ * 0.5, 0.1);
+//	v_left_ = vel_ramp(v_left_, v_ctrl_ - w_ctrl_ * L_ * 0.5, 0.1);
 	v_right_ = v_ctrl_ + w_ctrl_ * L_ * 0.5;
 	v_left_ = v_ctrl_ - w_ctrl_ * L_ * 0.5;
 	scale_vel_ref(&v_right_, &v_left_, MOTOR_V_MAX_);
+
 	pwm_right(v_right_);
 	pwm_left(v_left_);
 }
@@ -167,6 +182,8 @@ static void rotate() {
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
 				* stopping_coeff_w_;
 
+		reset_pid(&v_loop);
+		reset_pid(&w_loop);
 		movement_state_ = 1;
 	}
 	v_ref_ = 0;
@@ -204,6 +221,8 @@ static void go_to_xy() {
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
 				* stopping_coeff_w_;
 
+		reset_pid(&v_loop);
+		reset_pid(&w_loop);
 		reg_phase_ = 1;
 		break;
 	case 1:
@@ -229,6 +248,8 @@ static void go_to_xy() {
 				pow(distance_ / (starting_distance_ + stopping_distance_),
 						2.0 / 3.0), 0.0, 1.0);
 
+		reset_pid(&v_loop);
+		reset_pid(&w_loop);
 		// Calculate new parameters
 		v_max_temp_ *= slowing_coeff_;
 		stopping_distance_ = 5 * pow(v_max_temp_, 1.5) / 3 / sqrt(J_MAX_STOP_)
@@ -239,28 +260,29 @@ static void go_to_xy() {
 	case 3:
 		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
 		distance_proj_ = distance_ * cos(phi_error_);
-		if (obstacle_status_changed_) {
-			v0_ = v_base_;
-			obstacle_status_changed_ = 0;
-		}
+//		if (obstacle_status_changed_) {
+//			v0_ = v_base_;
+//			obstacle_status_changed_ = 0;
+//		}
 		v_ref_ = velocity_synthesis(distance_proj_ * direction_, v_base_, a_,
 				j_max_temp_, stopping_distance_, v_max_temp_, V_MIN_, dt_, v0_,
-				obstacle_, V_SLOWED_MAX_, V_MIN_ACC_);
+				obstacle_ * 0, V_SLOWED_MAX_, V_MIN_ACC_);
 		w_ref_ = P_w_
 				* clamp(
 						(distance_ - D_SHORT_TOL_)
 								/ (D_LONG_TOL_ - D_SHORT_TOL_), 0.0, 1.0)
 				* phi_error_;
 
-		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_ && fabs(get_v()) < V_MIN_ *2.0
+		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_
+				&& fabs(get_v()) < V_MIN_ * 2.0
 				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			if (fabs(distance_) < D_TOL_ * d_tol_perc_) {
 				movement_state_ = -1;
 			} else {
-				movement_state_ = -4;
+				movement_state_ = -2;
 			}
-		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_
-				&& fabs(w_base_) < W_MIN_) {
+		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_ * 2.0
+				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			movement_state_ = -4;
 		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_, 1.0 / dt_,
 				&stacked_cnt_)) {
@@ -277,16 +299,8 @@ void move_goal(goal_type *goal) {
 	else
 		obstacle_status_changed_ = 0;
 	obstacle_ = new_obstacle;
-	// TODO: proveri da li radi
-	if (goal->type == 0) {
-		v_ref_ = 0;
-		w_ref_ = 0;
-		return;
-	}
 	goal->status = movement_state_;
-	if (goal->status < 0)
-		reset_goal(goal);
-	else if (goal->status == 0) {
+	if (goal->status == 0 && goal->type != 0) {
 		goal->status = 1;
 		x_base_ = get_x();
 		y_base_ = get_y();
@@ -369,7 +383,7 @@ void reset_goal(goal_type *goal_ptr) {
 	goal_ptr->start_coeff_w = 1.0;
 	goal_ptr->stop_coeff_v = 1.0;
 	goal_ptr->stop_coeff_w = 1.0;
-//	goal_ptr->status = 0;
+	goal_ptr->status = 0;
 }
 
 static void reset_movement() {
