@@ -73,7 +73,7 @@ double velocity_synthesis(double distance, double velocity, double acceleration,
         break;
     }
 
-    if (abs_distance < stopping_distance*1.1)
+    if (abs_distance < stopping_distance*1.01)
     {
         double x = abs_distance / stopping_distance;
         abs_v_ref = v_des * (35.0f * pow(x, 4) - 84.0f * pow(x, 5) + 70.0f * pow(x, 6) - 20.0f * pow(x, 7));

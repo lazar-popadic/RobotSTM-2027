@@ -57,15 +57,15 @@ uint8_t get_set_goal_reset() {
 
 void move_init() {
 // TODO: vrati na 0.5 ili manje
-	STACKED_TIME_ = 0.5;
+	STACKED_TIME_ = 0.05;
 
 	dt_ = 0.001;
 	V_MIN_ = 0.1;
 	V_MAX_ = 1.5;
-	V_MIN_ACC_ = 0.5;
+	V_MIN_ACC_ = 1.0;
 	W_MIN_ = 0.314;
 	W_MAX_ = 12.57;
-	W_MIN_ACC_ = 3.14;
+	W_MIN_ACC_ = 1.57;
 	V_SLOWED_MAX_ = 0.75;
 	MOTOR_V_MAX_ = 1.6;
 	L_ = 0.1545;
@@ -75,10 +75,10 @@ void move_init() {
 	P_w_ = 12.0;
 	J_MAX_ = 16.0;
 	J_MAX_STOP_ = 16.0;
-	J_ROT_MAX_ = 60.0;
-	J_ROT_MAX_STOP_ = 60.0;
+	J_ROT_MAX_ = 600.0;
+	J_ROT_MAX_STOP_ = 320.0;
 	D_TOL_ = 0.02; // absolute distance from target
-	D_PROJ_TOL_ = 0.01; // projected distance from target
+	D_PROJ_TOL_ = 0.005; // projected distance from target
 	D_LONG_TOL_ = 0.08; // distance before rotation is used fully
 	D_SHORT_TOL_ = 0.03; // minimal distance for rotation during translation
 	PHI_TOL_ = 0.0157; // absolute angle from target
@@ -89,7 +89,7 @@ void move_init() {
 	j_rot_max_temp_ = J_ROT_MAX_;
 
 	init_pid(&v_loop, 12.0, 0.01, 0.0, 1680, 420);
-	init_pid(&w_loop, 12.0, 0.02, 0.0, 1680, 560);
+	init_pid(&w_loop, 16.0, 0.02, 0.0, 1680, 420);
 }
 
 void control_loop() {
@@ -168,7 +168,11 @@ double get_v_l() {
 
 static void rotate() {
 	phi_error_ = wrap(phi_ref_ - phi_base_, -M_PI, M_PI);
-
+	if (fabs(phi_error_) < PHI_TOL_ * phi_tol_perc_
+			&& fabs(get_w()) < W_MIN_ * 2.0) {
+		movement_state_ = -1;
+	}
+	double W_MIN_ACC_temp_;
 	if (movement_state_ == 0) {
 		starting_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(j_rot_max_temp_)
 				* starting_coeff_w_;
@@ -179,6 +183,7 @@ static void rotate() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.5, 1.0) * W_MIN_ACC_;
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
 				* stopping_coeff_w_;
@@ -189,17 +194,14 @@ static void rotate() {
 	}
 	v_ref_ = 0;
 	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
-			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0, W_MIN_ACC_);
-	if (fabs(phi_error_) < PHI_TOL_ * phi_tol_perc_
-			&& fabs(get_w()) < W_MIN_ * 2.0) {
-		movement_state_ = -1;
-	}
+			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0, W_MIN_ACC_temp_);
 }
 
 static void go_to_xy() {
 	if (movement_state_ == 0) {
 		movement_state_ = 1;
 	}
+	double W_MIN_ACC_temp_;
 
 	x_error_ = x_ref_ - x_base_;
 	y_error_ = y_ref_ - y_base_;
@@ -208,6 +210,8 @@ static void go_to_xy() {
 					+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
 	switch (reg_phase_) {
 	case 0:
+		v_ref_ = 0;
+		w_ref_ = 0;
 		starting_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(j_rot_max_temp_)
 				* starting_coeff_w_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
@@ -217,6 +221,7 @@ static void go_to_xy() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.5, 1.0) * W_MIN_ACC_;
 		// Calculate new parameters
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
@@ -227,16 +232,20 @@ static void go_to_xy() {
 		reg_phase_ = 1;
 		break;
 	case 1:
-		v_ref_ = 0;
-		w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_,
-				j_rot_max_temp_, stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0,
-				0, 0.0, W_MIN_ACC_);
-		if (fabs(phi_error_) < PHI_TOL_ && fabs(get_w()) < W_MIN_ * 2.0) {
+		if (fabs(phi_error_) < PHI_TOL_*3.0 && fabs(get_w()) < W_MIN_ * 2.0) {
 			reg_phase_ = 2;
 			w_max_temp_ = W_MAX_;
 		}
+		if (W_MIN_ACC_temp_ < 0.2)
+			W_MIN_ACC_temp_ = W_MIN_ACC_;
+		v_ref_ = 0;
+		w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_,
+				j_rot_max_temp_, stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0,
+				0, 0.0, W_MIN_ACC_temp_);
 		break;
 	case 2:
+		v_ref_ = 0;
+		w_ref_ = 0;
 		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
 		distance_proj_ = distance_ * cos(phi_error_);
 
@@ -285,7 +294,7 @@ static void go_to_xy() {
 		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_ * 2.0
 				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			movement_state_ = -4;
-		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_, 1.0 / dt_,
+		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_*0.5, 1.0 / dt_,
 				&stacked_cnt_)) {
 			movement_state_ = -3;
 		}
