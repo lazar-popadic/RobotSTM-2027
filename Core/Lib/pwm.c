@@ -18,6 +18,11 @@ void pwm_init() {
 	HAL_TIM_PWM_Start(&htim9, TIM_CHANNEL_2);
 }
 
+void pwm_kill() {
+	HAL_TIM_PWM_Stop(&htim9, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Stop(&htim9, TIM_CHANNEL_2);
+}
+
 int8_t sign(float x) {
 	if (x > 0.0)
 		return 1;

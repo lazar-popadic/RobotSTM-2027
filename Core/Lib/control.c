@@ -12,6 +12,7 @@ static void rotate();
 static void go_to_xy();
 void reset_goal(goal_type *goal_ptr);
 static void velocity_loop();
+static void kill_movement();
 
 uint8_t set_goal_reset = 0;
 
@@ -50,6 +51,7 @@ double P_w_;
 unsigned stacked_cnt_ = 0;
 double V_SLOWED_MAX_ = 0.75;
 volatile pid v_loop, w_loop;
+int8_t prev_type = 0;
 
 uint8_t get_set_goal_reset() {
 	return set_goal_reset;
@@ -65,18 +67,20 @@ void move_init() {
 	V_MIN_ACC_ = 1.0;
 	W_MIN_ = 0.314;
 	W_MAX_ = 12.57;
-	W_MIN_ACC_ = 3.14;
+	W_MIN_ACC_ = 1.57;
 	V_SLOWED_MAX_ = 0.75;
 	MOTOR_V_MAX_ = 1.6;
 	L_ = 0.1545;
-	L_MAX_ = 0.1935;
-	L_MIN_ = 0.1155;
+	//	L_MAX_ = 0.1935;
+	//	L_MIN_ = 0.1155;
+	L_MAX_ = 0.1545;
+	L_MIN_ = 0.1545;
 	eta_ = 0.01;
-	P_w_ = 6.0;
+	P_w_ = 16.0;
 	J_MAX_ = 12.0;
-	J_MAX_STOP_ = 16.0;
-	J_ROT_MAX_ = 50.0;
-	J_ROT_MAX_STOP_ = 50.0;
+	J_MAX_STOP_ = 12.0;
+	J_ROT_MAX_ = 480.0;
+	J_ROT_MAX_STOP_ = 480.0;
 	D_TOL_ = 0.02; // absolute distance from target
 	D_PROJ_TOL_ = 0.005; // projected distance from target
 	D_LONG_TOL_ = 0.12; // distance before rotation is used fully
@@ -89,7 +93,7 @@ void move_init() {
 	j_rot_max_temp_ = J_ROT_MAX_;
 
 	init_pid(&v_loop, 12.0, 0.01, 0.0, 1680, 420);
-	init_pid(&w_loop, 17.0, 0.08, 0.0, 1680, 420);
+	init_pid(&w_loop, 52.0, 0.02, 3.6, 1680, 560);
 }
 
 void control_loop() {
@@ -194,7 +198,8 @@ static void rotate() {
 	}
 	v_ref_ = 0;
 	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
-			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0, W_MIN_ACC_temp_);
+			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0,
+			W_MIN_ACC_temp_);
 }
 
 static void go_to_xy() {
@@ -232,7 +237,7 @@ static void go_to_xy() {
 		reg_phase_ = 1;
 		break;
 	case 1:
-		if (fabs(phi_error_) < PHI_TOL_*3.0 && fabs(get_w()) < W_MIN_ * 2.0) {
+		if (fabs(phi_error_) < PHI_TOL_ * 3.0 && fabs(get_w()) < W_MIN_ * 2.0) {
 			reg_phase_ = 2;
 			w_max_temp_ = W_MAX_;
 		}
@@ -292,7 +297,7 @@ static void go_to_xy() {
 		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_ * 2.0
 				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			movement_state_ = -4;
-		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_*0.5, 1.0 / dt_,
+		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_ * 0.5, 1.0 / dt_,
 				&stacked_cnt_)) {
 			movement_state_ = -3;
 		}
@@ -308,11 +313,13 @@ void move_goal(goal_type *goal) {
 		obstacle_status_changed_ = 0;
 	obstacle_ = new_obstacle;
 	goal->status = movement_state_;
-	if (goal->type == 0)
-	{
+//	if (prev_type == 10 && goal->type != 10)
+//		pwm_init();
+	if (goal->type == 0) {
 		reset_movement();
-	}
-	else if (goal->status == 0) {
+	} else if (goal->type == 10) {
+		kill_movement();
+	} else if (goal->status == 0) {
 		goal->status = 1;
 		x_base_ = get_x();
 		y_base_ = get_y();
@@ -335,7 +342,7 @@ void move_goal(goal_type *goal) {
 			phi_ref_ = goal->phi;
 			reg_type_ = -1;
 			break;
-		// Reset
+			// Reset
 		case 0:
 			reset_goal(goal);
 			// Move to XY
@@ -347,6 +354,7 @@ void move_goal(goal_type *goal) {
 			break;
 		}
 	}
+	prev_type = goal->type;
 }
 //mqjmune
 void reset_goal(goal_type *goal_ptr) {
@@ -368,6 +376,30 @@ void reset_goal(goal_type *goal_ptr) {
 }
 
 static void reset_movement() {
+	movement_state_ = 0;
+	stacked_cnt_ = 0;
+	x_ref_ = x_base_;
+	y_ref_ = y_base_;
+	phi_ref_ = phi_base_;
+	direction_ = 1;
+	j_max_temp_ = J_MAX_;
+	j_rot_max_temp_ = J_ROT_MAX_;
+	v_max_temp_ = V_MAX_;
+	w_max_temp_ = W_MAX_;
+	starting_coeff_v_ = 1.0;
+	stopping_coeff_v_ = 1.0;
+	starting_coeff_w_ = 1.0;
+	stopping_coeff_w_ = 1.0;
+	d_tol_perc_ = 1.0;
+	phi_tol_perc_ = 1.0;
+	reg_type_ = 0;
+	reg_phase_ = 0;
+	reset_pid(&v_loop);
+	reset_pid(&w_loop);
+}
+
+static void kill_movement() {
+//	pwm_kill();
 	movement_state_ = 0;
 	stacked_cnt_ = 0;
 	x_ref_ = x_base_;

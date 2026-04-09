@@ -69,7 +69,10 @@ void process_rx_buffer() {
 
 	uint16_t received_checksum = rxba[30] | (rxba[31] << 8);
 
-	// ide kretnja vec ide
+	// kill
+	if (type == 0 || type == 10)
+		rx_goal.type = type;
+	// kretnja vec ide
 	if (rx_goal.status > 0)
 		return;
 
