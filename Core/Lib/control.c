@@ -16,7 +16,7 @@ static void kill_movement();
 
 uint8_t set_goal_reset = 0;
 
-double V_MIN_, V_MAX_, W_MIN_, W_MAX_, V_MIN_ACC_, W_MIN_ACC_;
+double V_MIN_, V_MAX_, W_MIN_, W_MAX_, V_MIN_ACC_, W_MIN_ACC_, V_MIN_STACKED_;
 double L_, L_MIN_, L_MAX_;
 double STACKED_TIME_;
 double D_TOL_, D_LONG_TOL_, D_PROJ_TOL_, D_SHORT_TOL_;
@@ -65,6 +65,7 @@ void move_init() {
 	V_MIN_ = 0.1;
 	V_MAX_ = 1.5;
 	V_MIN_ACC_ = 1.0;
+	V_MIN_STACKED_ = 0.02;
 	W_MIN_ = 0.314;
 	W_MAX_ = 12.57;
 	W_MIN_ACC_ = 1.57;
@@ -77,10 +78,10 @@ void move_init() {
 	L_MIN_ = 0.1545;
 	eta_ = 0.01;
 	P_w_ = 16.0;
-	J_MAX_ = 12.0;
-	J_MAX_STOP_ = 12.0;
-	J_ROT_MAX_ = 480.0;
-	J_ROT_MAX_STOP_ = 480.0;
+	J_MAX_ = 15.0;
+	J_MAX_STOP_ = 15.0;
+	J_ROT_MAX_ = 900.0;
+	J_ROT_MAX_STOP_ = 560.0;
 	D_TOL_ = 0.02; // absolute distance from target
 	D_PROJ_TOL_ = 0.005; // projected distance from target
 	D_LONG_TOL_ = 0.12; // distance before rotation is used fully
@@ -93,7 +94,7 @@ void move_init() {
 	j_rot_max_temp_ = J_ROT_MAX_;
 
 	init_pid(&v_loop, 12.0, 0.01, 0.0, 1680, 420);
-	init_pid(&w_loop, 52.0, 0.02, 3.6, 1680, 560);
+	init_pid(&w_loop, 60.0, 0.02, 3.2, 1680, 420); // bilo 52, 0.02, 2.8, 420
 }
 
 void control_loop() {
@@ -187,7 +188,7 @@ static void rotate() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
-		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.6, 1.0) * W_MIN_ACC_;
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.666, 1.0) * W_MIN_ACC_;
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
 				* stopping_coeff_w_;
@@ -297,7 +298,7 @@ static void go_to_xy() {
 		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_ * 2.0
 				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			movement_state_ = -4;
-		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_ * 0.5, 1.0 / dt_,
+		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_STACKED_, 1.0 / dt_,
 				&stacked_cnt_)) {
 			movement_state_ = -3;
 		}
