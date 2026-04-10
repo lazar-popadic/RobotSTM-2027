@@ -68,7 +68,7 @@ void move_init() {
 	V_MIN_STACKED_ = 0.02;
 	W_MIN_ = 0.314;
 	W_MAX_ = 12.57;
-	W_MIN_ACC_ = 1.57;
+	W_MIN_ACC_ = 2.36;
 	V_SLOWED_MAX_ = 0.75;
 	MOTOR_V_MAX_ = 1.6;
 	L_ = 0.1545;
@@ -94,7 +94,7 @@ void move_init() {
 	j_rot_max_temp_ = J_ROT_MAX_;
 
 	init_pid(&v_loop, 12.0, 0.01, 0.0, 1680, 420);
-	init_pid(&w_loop, 60.0, 0.02, 3.2, 1680, 420); // bilo 52, 0.02, 2.8, 420
+	init_pid(&w_loop, 80.0, 0.02, 6.0, 1680, 560); // bilo 52, 0.02, 2.8, 420
 }
 
 void control_loop() {
@@ -188,7 +188,7 @@ static void rotate() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
-		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.666, 1.0) * W_MIN_ACC_;
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.5, 1.0) * W_MIN_ACC_;
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
 				* stopping_coeff_w_;
