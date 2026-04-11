@@ -19,6 +19,10 @@ void pwm_init() {
 }
 
 void pwm_kill() {
+	set_motor_r_dir(0);
+	set_motor_l_dir(0);
+	pwm_set_dc(&htim9, TIM_CHANNEL_1, 0);
+	pwm_set_dc(&htim9, TIM_CHANNEL_2, 0);
 	HAL_TIM_PWM_Stop(&htim9, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Stop(&htim9, TIM_CHANNEL_2);
 	HAL_TIM_PWM_DeInit(&htim9);

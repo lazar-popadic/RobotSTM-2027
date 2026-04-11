@@ -12,7 +12,7 @@ static void rotate();
 static void go_to_xy();
 void reset_goal(goal_type *goal_ptr);
 static void velocity_loop();
-static void kill_movement();
+static void disassemble();
 
 uint8_t set_goal_reset = 0;
 
@@ -59,16 +59,16 @@ uint8_t get_set_goal_reset() {
 
 void move_init() {
 // TODO: vrati na 0.5 ili manje
-	STACKED_TIME_ = 0.05;
+	STACKED_TIME_ = 0.04;
 
 	dt_ = 0.001;
 	V_MIN_ = 0.1;
 	V_MAX_ = 1.5;
 	V_MIN_ACC_ = 1.0;
-	V_MIN_STACKED_ = 0.02;
+	V_MIN_STACKED_ = 0.01;
 	W_MIN_ = 0.314;
 	W_MAX_ = 12.57;
-	W_MIN_ACC_ = 2.36;
+	W_MIN_ACC_ = 2.0;
 	V_SLOWED_MAX_ = 0.75;
 	MOTOR_V_MAX_ = 1.6;
 	L_ = 0.1545;
@@ -94,7 +94,7 @@ void move_init() {
 	j_rot_max_temp_ = J_ROT_MAX_;
 
 	init_pid(&v_loop, 12.0, 0.01, 1.0, 1680, 420);
-	init_pid(&w_loop, 80.0, 0.024, 20.0, 1680, 280); // bilo 52, 0.02, 2.8, 420
+	init_pid(&w_loop, 92.0, 0.025, 28.0, 1680, 280); // bilo 52, 0.02, 2.8, 420
 }
 
 void control_loop() {
@@ -319,7 +319,7 @@ void move_goal(goal_type *goal) {
 	if (goal->type == 0) {
 		reset_movement();
 	} else if (goal->type == 10) {
-		kill_movement();
+		disassemble();
 	} else if (goal->status == 0) {
 		goal->status = 1;
 		x_base_ = get_x();
@@ -399,9 +399,7 @@ static void reset_movement() {
 	reset_pid(&w_loop);
 }
 
-static void kill_movement() {
-	time_stop();
-	pwm_kill();
+static void disassemble() {
 	movement_state_ = 0;
 	stacked_cnt_ = 0;
 	x_ref_ = x_base_;
@@ -422,4 +420,6 @@ static void kill_movement() {
 	reg_phase_ = 0;
 	reset_pid(&v_loop);
 	reset_pid(&w_loop);
+	pwm_kill();
+	time_stop();
 }
