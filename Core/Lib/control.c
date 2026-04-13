@@ -105,6 +105,7 @@ void control_loop() {
 	v_base_ = get_v();
 	L_ = correct_param(L_, fabs(w_ref_) - fabs(w_base_), eta_, L_MIN_, L_MAX_);
 	obstacle_dir_ = 0;
+
 	switch (reg_type_) {
 	case -1:
 		rotate();
@@ -272,6 +273,25 @@ static void go_to_xy() {
 		reg_phase_ = 3;
 		break;
 	case 3:
+		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_
+				&& fabs(get_v()) < V_MIN_ * 2.0
+				&& fabs(get_w()) < W_MIN_ * 2.0) {
+			if (fabs(distance_) < D_TOL_ * d_tol_perc_) {
+				movement_state_ = -1;
+				break;
+			} else {
+				movement_state_ = -2;
+				break;
+			}
+		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_ * 2.0
+				&& fabs(w_base_) < W_MIN_ * 2.0) {
+			movement_state_ = -4;
+			break;
+		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_STACKED_, 1.0 / dt_,
+				&stacked_cnt_)) {
+			movement_state_ = -3;
+			break;
+		}
 		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
 		distance_proj_ = distance_ * cos(phi_error_);
 //		if (obstacle_status_changed_) {
@@ -286,22 +306,6 @@ static void go_to_xy() {
 						(distance_ - D_SHORT_TOL_)
 								/ (D_LONG_TOL_ - D_SHORT_TOL_), 0.0, 1.0)
 				* phi_error_;
-
-		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_
-				&& fabs(get_v()) < V_MIN_ * 2.0
-				&& fabs(get_w()) < W_MIN_ * 2.0) {
-			if (fabs(distance_) < D_TOL_ * d_tol_perc_) {
-				movement_state_ = -1;
-			} else {
-				movement_state_ = -2;
-			}
-		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_ * 2.0
-				&& fabs(w_base_) < W_MIN_ * 2.0) {
-			movement_state_ = -4;
-		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_STACKED_, 1.0 / dt_,
-				&stacked_cnt_)) {
-			movement_state_ = -3;
-		}
 		break;
 	}
 }
@@ -312,7 +316,7 @@ void move_goal(goal_type *goal) {
 		obstacle_status_changed_ = 1;
 	else
 		obstacle_status_changed_ = 0;
-	obstacle_ = new_obstacle;
+	obstacle_ = goal->obstacle;
 	goal->status = movement_state_;
 //	if (prev_type == 10 && goal->type != 10)
 //		pwm_init();
