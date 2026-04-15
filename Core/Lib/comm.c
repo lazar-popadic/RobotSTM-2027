@@ -28,7 +28,7 @@ uint16_t prev_checksum = 0;
 volatile goal_type rx_goal;
 double x_dbg = -1.0, y_dbg = 0.0, phi_dbg = 1.5708;
 int8_t type_dbg = 1;
-static double PHI_TOL_ = 0.0314, D_TOL_ = 0.02;
+//static double PHI_TOL_ = 0.0314, D_TOL_ = 0.02;
 /*
  * ROS2 -> STM32:
  * 40B:

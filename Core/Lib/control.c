@@ -52,13 +52,14 @@ unsigned stacked_cnt_ = 0;
 double V_SLOWED_MAX_ = 0.75;
 volatile pid v_loop, w_loop;
 int8_t prev_type = 0;
+uint8_t obst_f_ = 0, obst_b_ = 0;
+int8_t obst_in_loop_budz_ = 0;
 
 uint8_t get_set_goal_reset() {
 	return set_goal_reset;
 }
 
 void move_init() {
-// TODO: vrati na 0.5 ili manje
 	STACKED_TIME_ = 0.04;
 
 	dt_ = 0.001;
@@ -68,7 +69,8 @@ void move_init() {
 	V_MIN_STACKED_ = 0.01;
 	W_MIN_ = 0.314;
 	W_MAX_ = 12.57;
-	W_MIN_ACC_ = 2.0;
+//	W_MIN_ACC_ = 2.0;
+	W_MIN_ACC_ = 1.0;
 	V_SLOWED_MAX_ = 0.75;
 	MOTOR_V_MAX_ = 1.75;
 	L_ = 0.1545;
@@ -76,12 +78,13 @@ void move_init() {
 //		L_MIN_ = 0.1155;
 	L_MAX_ = 0.1545;
 	L_MIN_ = 0.1545;
-	eta_ = 0.01;
-	P_w_ = 16.0;
-	J_MAX_ = 24.0;
-	J_MAX_STOP_ = 16.0;
-	J_ROT_MAX_ = 900.0;
-	J_ROT_MAX_STOP_ = 560.0;
+//	eta_ = 0.01;
+//	P_w_ = 16.0;
+	P_w_ = 18.0;
+	J_MAX_ = 36.0;
+	J_MAX_STOP_ = 20.0;
+	J_ROT_MAX_ = 1800.0;
+	J_ROT_MAX_STOP_ = 1000.0;
 	D_TOL_ = 0.02; // absolute distance from target
 	D_PROJ_TOL_ = 0.005; // projected distance from target
 	D_LONG_TOL_ = 0.12; // distance before rotation is used fully
@@ -103,8 +106,10 @@ void control_loop() {
 	phi_base_ = get_phi();
 	w_base_ = get_w();
 	v_base_ = get_v();
-	L_ = correct_param(L_, fabs(w_ref_) - fabs(w_base_), eta_, L_MIN_, L_MAX_);
+//	L_ = correct_param(L_, fabs(w_ref_) - fabs(w_base_), eta_, L_MIN_, L_MAX_);
 	obstacle_dir_ = 0;
+	obst_f_ = obstacle_ & 0b01;
+	obst_b_ = (obstacle_ >> 1) & 0b01;
 
 	switch (reg_type_) {
 	case -1:
@@ -120,7 +125,7 @@ void control_loop() {
 		break;
 	}
 
-	if (obstacle_ == 1){
+	if ((obst_f_ && direction_ == 1) || (obst_b_ && direction_ == -1)) {
 		v_ref_ = 0.0;
 		reset_pid(&v_loop);
 	}
@@ -191,7 +196,7 @@ static void rotate() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
-		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.5, 1.0) * W_MIN_ACC_;
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_ + 0.1, 0.4, 1.0) * W_MIN_ACC_;
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
 				* stopping_coeff_w_;
@@ -230,7 +235,7 @@ static void go_to_xy() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
-		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.5, 1.0) * W_MIN_ACC_;
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_ + 0.1, 0.4, 1.0) * W_MIN_ACC_;
 		// Calculate new parameters
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
@@ -275,6 +280,10 @@ static void go_to_xy() {
 		reg_phase_ = 3;
 		break;
 	case 3:
+		if (direction_ == 1)
+			obst_in_loop_budz_ = obst_f_;
+		else
+			obst_in_loop_budz_ = obst_b_;
 		if (distance_proj_ < D_PROJ_TOL_ * d_tol_perc_
 				&& fabs(get_v()) < V_MIN_ * 2.0
 				&& fabs(get_w()) < W_MIN_ * 2.0) {
@@ -285,7 +294,7 @@ static void go_to_xy() {
 				movement_state_ = -5;
 				break;
 			}
-		} else if (obstacle_ == 1 && fabs(v_base_) < V_MIN_ * 2.0
+		} else if (obst_in_loop_budz_ && fabs(v_base_) < V_MIN_ * 2.0
 				&& fabs(w_base_) < W_MIN_ * 2.0) {
 			movement_state_ = -4;
 			break;
@@ -301,8 +310,8 @@ static void go_to_xy() {
 //			obstacle_status_changed_ = 0;
 //		}
 		v_ref_ = velocity_synthesis(distance_proj_ * direction_, v_base_, a_,
-				j_max_temp_, stopping_distance_, v_max_temp_, V_MIN_, dt_, v0_,
-				obstacle_ * 0, V_SLOWED_MAX_, V_MIN_ACC_);
+				j_max_temp_, stopping_distance_, v_max_temp_, V_MIN_, dt_, 0.0,
+				obst_in_loop_budz_, V_SLOWED_MAX_, V_MIN_ACC_);
 		w_ref_ = P_w_
 				* clamp(
 						(distance_ - D_SHORT_TOL_)
@@ -383,6 +392,7 @@ void reset_goal(goal_type *goal_ptr) {
 }
 
 static void reset_movement() {
+	obst_in_loop_budz_ = 0;
 	movement_state_ = 0;
 	stacked_cnt_ = 0;
 	x_ref_ = x_base_;
