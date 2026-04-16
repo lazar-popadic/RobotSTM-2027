@@ -60,19 +60,18 @@ uint8_t get_set_goal_reset() {
 }
 
 void move_init() {
-	STACKED_TIME_ = 0.04;
+	STACKED_TIME_ = 0.06;
 
 	dt_ = 0.001;
-	V_MIN_ = 0.125;
-	V_MAX_ = 1.75;
-	V_MIN_ACC_ = 1.0;
+	V_MIN_ = 0.15;
+	V_MAX_ = 1.5;
+	V_MIN_ACC_ = 1.5;
 	V_MIN_STACKED_ = 0.01;
-	W_MIN_ = 0.314;
+	W_MIN_ = 0.628;
 	W_MAX_ = 12.57;
-//	W_MIN_ACC_ = 2.0;
-	W_MIN_ACC_ = 1.0;
+	W_MIN_ACC_ = 12.57;
 	V_SLOWED_MAX_ = 0.75;
-	MOTOR_V_MAX_ = 1.75;
+	MOTOR_V_MAX_ = 1.6;
 	L_ = 0.1545;
 //		L_MAX_ = 0.1935;
 //		L_MIN_ = 0.1155;
@@ -83,8 +82,8 @@ void move_init() {
 	P_w_ = 18.0;
 	J_MAX_ = 36.0;
 	J_MAX_STOP_ = 20.0;
-	J_ROT_MAX_ = 1800.0;
-	J_ROT_MAX_STOP_ = 1000.0;
+	J_ROT_MAX_ = 2400.0;
+	J_ROT_MAX_STOP_ = 300.0;
 	D_TOL_ = 0.02; // absolute distance from target
 	D_PROJ_TOL_ = 0.005; // projected distance from target
 	D_LONG_TOL_ = 0.12; // distance before rotation is used fully
@@ -185,7 +184,7 @@ static void rotate() {
 			&& fabs(get_w()) < W_MIN_ * 2.0) {
 		movement_state_ = -1;
 	}
-	double W_MIN_ACC_temp_;
+	double W_MIN_ACC_temp_ = W_MIN_ACC_;
 	if (movement_state_ == 0) {
 		starting_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(j_rot_max_temp_)
 				* starting_coeff_w_;
@@ -196,7 +195,7 @@ static void rotate() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
-		W_MIN_ACC_temp_ = clamp(slowing_coeff_ + 0.1, 0.4, 1.0) * W_MIN_ACC_;
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.6, 1.0) * W_MIN_ACC_;
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
 				* stopping_coeff_w_;
@@ -235,7 +234,7 @@ static void go_to_xy() {
 				pow(fabs(phi_error_) / (starting_angle_ + stopping_angle_),
 						2.0 / 3.0), 0.0, 1.0);
 
-		W_MIN_ACC_temp_ = clamp(slowing_coeff_ + 0.1, 0.4, 1.0) * W_MIN_ACC_;
+		W_MIN_ACC_temp_ = clamp(slowing_coeff_, 0.6, 1.0) * W_MIN_ACC_;
 		// Calculate new parameters
 		w_max_temp_ *= slowing_coeff_;
 		stopping_angle_ = 5 * pow(w_max_temp_, 1.5) / 3 / sqrt(J_ROT_MAX_STOP_)
