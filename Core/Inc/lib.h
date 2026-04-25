@@ -31,26 +31,6 @@ typedef struct st_pid {
 	double sum_lmt;
 } pid;
 
-typedef struct goal_struct {
-	int8_t type;
-	double x;
-	double y;
-	double phi;
-	int8_t obstacle;
-	int8_t direction;
-	double v_max;
-	double w_max;
-	double distance_tolerance_percentage;
-	double angle_tolerance_percentage;
-	double start_coeff_v;
-	double start_coeff_w;
-	double stop_coeff_v;
-	double stop_coeff_w;
-	int8_t status; // -1 = success; -2 = canceled; -3 = interrupted; -4 = timed out
-	double distance_remaininig;
-	double angle_remaining;
-} goal_type;
-
 // pid.h
 double
 calc_pid(volatile pid *pid_ptr, double err, double dt);
@@ -153,8 +133,5 @@ void velocity_loop(double dt);
 void move_init();
 double get_v_r();
 double get_v_l();
-void move_goal(goal_type *goal);
-uint8_t get_set_goal_reset();
-void reset_goal(goal_type *goal_ptr);
 
 #endif /* LIB_LIB_H_ */
