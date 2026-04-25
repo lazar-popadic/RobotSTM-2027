@@ -17,18 +17,18 @@
 #include "gpio.h"
 
 typedef struct st_pid {
-	float p;
-	float i;
-	float d;
-	float lmt;
-	float ctrl;
-	float ctrl_p;
-	float ctrl_pp;
-	float err_p;
-	float err_sum;
-	float err_dif;
-	float sum_lmt;
-
+	double p;
+	double i;
+	double d;
+	double lmt;
+	double p_ctrl;
+	double i_ctrl;
+	double d_ctrl;
+	double ctrl;
+	double err_p;
+	double err_sum;
+	double err_dif;
+	double sum_lmt;
 } pid;
 
 typedef struct goal_struct {
@@ -52,13 +52,13 @@ typedef struct goal_struct {
 } goal_type;
 
 // pid.h
-float
-calc_pid(volatile pid *pid_ptr, float err);
-float
-calc_pid_2(volatile pid *pid_ptr, float ref, float val);
+double
+calc_pid(volatile pid *pid_ptr, double err, double dt);
+double
+calc_pid_2(volatile pid *pid_ptr, double ref, double val, double dt);
 void
-init_pid(volatile pid *pid_ptr, float p, float i, float d, float limit,
-		float sum_limit);
+init_pid(volatile pid *pid_ptr, double p, double i, double d, double limit,
+		double sum_limit);
 void
 reset_pid(volatile pid *pid_ptr);
 
@@ -94,6 +94,7 @@ void
 set_motor_l_dir(int8_t dir);
 void
 set_motor_r_dir(int8_t dir);
+
 // odometry.h
 void
 odometry_init();
@@ -147,7 +148,8 @@ double snap_ortho_deg(double phi);
 // comm.h
 
 // control.h
-void control_loop();
+void control_loop(double dt);
+void velocity_loop(double dt);
 void move_init();
 double get_v_r();
 double get_v_l();

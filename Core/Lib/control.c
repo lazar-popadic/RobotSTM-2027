@@ -11,7 +11,6 @@ static void reset_movement();
 static void rotate();
 static void go_to_xy();
 void reset_goal(goal_type *goal_ptr);
-static void velocity_loop();
 static void disassemble();
 
 uint8_t set_goal_reset = 0;
@@ -99,7 +98,7 @@ void move_init() {
 	init_pid(&w_loop, 92.0, 0.025, 28.0, 1680, 280); // bilo 52, 0.02, 2.8, 420
 }
 
-void control_loop() {
+void control_loop(double dt) {
 	x_base_ = get_x();
 	y_base_ = get_y();
 	phi_base_ = get_phi();
@@ -129,8 +128,6 @@ void control_loop() {
 		reset_pid(&v_loop);
 	}
 
-	velocity_loop();
-
 	a_ = (v_base_ - prev_v_) / dt_;
 	alpha_ = (w_base_ - prev_w_) / dt_;
 
@@ -139,12 +136,12 @@ void control_loop() {
 
 }
 
-static void velocity_loop() {
+void velocity_loop(double dt) {
 	// ulaz: referenca za brzine levog i desnog: v_ref_, w_ref_
 	double v_err = v_ref_ - get_v();
 	double w_err = w_ref_ - get_w();
-	v_ctrl_ = calc_pid(&v_loop, v_err);
-	w_ctrl_ = calc_pid(&w_loop, w_err);
+	v_ctrl_ = calc_pid(&v_loop, v_err, dt);
+	w_ctrl_ = calc_pid(&w_loop, w_err, dt);
 
 //	v_ctrl_ = vel_ramp(v_ctrl_, calc_pid(&v_loop, v_err), 0.05);
 //	w_ctrl_ = vel_ramp(w_ctrl_, calc_pid(&w_loop, w_err), 0.15);
