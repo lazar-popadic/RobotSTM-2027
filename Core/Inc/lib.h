@@ -15,7 +15,6 @@
 
 #include "tim.h"
 #include "gpio.h"
-#include "usart.h"
 
 typedef struct st_pid {
 	float p;
@@ -137,6 +136,7 @@ double abs_min(double a, double b);
 unsigned long unsigned_min(unsigned long a, unsigned long b);
 void vel_ramp_up_ptr(double *signal, double reference, double acc);
 double vel_ramp_up(double signal, double reference, double acc);
+double vel_ramp(double signal, double reference, double acc);
 double vel_s_curve_up_webots(double *vel, double prev_vel, double vel_ref,
 		double jerk);
 double vel_s_curve_up(double vel, double accel, double vel_ref, double jerk);
@@ -144,16 +144,7 @@ double min3(double a, double b, double c);
 double snap_angle(double angle, double step);
 double snap_ortho_deg(double phi);
 
-//motorControl.h
-double calculate_control(double ref, double y);
-
 // comm.h
-void
-update_tx_buffer();
-void
-comm_init();
-void process_rx_buffer();
-goal_type* get_rx_goal();
 
 // control.h
 void control_loop();

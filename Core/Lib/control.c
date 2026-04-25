@@ -139,16 +139,6 @@ void control_loop() {
 
 }
 
-static double vel_ramp(double signal, double reference, double acc) {
-	double err = reference - signal;
-
-	if (fabs(err) > acc)
-		signal += get_sign(err) * acc;
-	else
-		signal = reference;
-	return signal;
-}
-
 static void velocity_loop() {
 	// ulaz: referenca za brzine levog i desnog: v_ref_, w_ref_
 	double v_err = v_ref_ - get_v();

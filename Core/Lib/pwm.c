@@ -7,7 +7,7 @@
 
 #include "main.h"
 
-volatile float diameter = 0.07, max_v = 2.0;
+volatile float max_v = 2.0;
 
 void pwm_set_dc(TIM_HandleTypeDef *htim, uint32_t channel, int16_t duty_cycle) {
 	__HAL_TIM_SET_COMPARE(htim, channel, duty_cycle);
@@ -35,6 +35,8 @@ int8_t sign(float x) {
 		return -1;
 	return 0;
 }
+
+// TODO: posalji max_v umesto ovaj glupi hardcode
 
 void pwm_left(float vel) {
 	int16_t pwm;

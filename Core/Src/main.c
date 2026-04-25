@@ -18,9 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "dma.h"
 #include "tim.h"
-#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -46,10 +44,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-goal_type rot_goal, xy_goal;
-goal_type* rx_goal_ptr;
-int16_t main_fsm_state = 0;
-int8_t dir_dbg=0;
 
 /* USER CODE END PV */
 
@@ -93,17 +87,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
   MX_TIM5_Init();
   MX_TIM9_Init();
   MX_TIM10_Init();
-  MX_USART1_UART_Init();
-  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
-	comm_init();
 	time_start();
 	enc_init();
 	pwm_init();
@@ -113,45 +103,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-	rot_goal.type = -1;
-	rot_goal.phi = 3.14;
-	rot_goal.w_max = 3.14;
-	rot_goal.angle_tolerance_percentage = 1.0;
-	rot_goal.start_coeff_w = 1.0;
-	rot_goal.stop_coeff_w = 1.0;
-//	move_goal(&rot_goal);
-	xy_goal.type = 1;
-	xy_goal.x = 0.5;
-	xy_goal.y = 0.5;
-	xy_goal.direction = 1;
-	xy_goal.v_max = 1.0;
-	xy_goal.w_max = 6.0;
-	xy_goal.distance_tolerance_percentage = 1.0;
-	xy_goal.angle_tolerance_percentage = 1.0;
-	xy_goal.start_coeff_v = 1.0;
-	xy_goal.start_coeff_w = 1.0;
-	xy_goal.stop_coeff_v = 1.0;
-	xy_goal.stop_coeff_w = 1.0;
-//	move_goal(&xy_goal);
-
 	while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//		set_motor_l_dir(dir_dbg);
-//		set_motor_r_dir(dir_dbg);
-		switch (main_fsm_state) {
-		case 0:
-			rx_goal_ptr = get_rx_goal();
-//			if (rx_goal_ptr->status < 0)
-//				main_fsm_state = -1;
-//			else
-				move_goal(rx_goal_ptr);
-			break;
-		case -1:
-			break;
-		}
 	}
   /* USER CODE END 3 */
 }

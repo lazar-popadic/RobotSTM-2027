@@ -39,8 +39,7 @@ update_odom ()
 {
 	v_r_diff = cnt_difference (&htim5, &enc_r_sum);			// [inc/ms]
 	v_l_diff = cnt_difference (&htim3, &enc_l_sum);
-	// TODO: mora da se koriste i d
-	v_right = -enc_velocity (v_r_diff, 0.001, 8192) * d_odom_right;			// rad/s, a treba da budu m/s
+	v_right = -enc_velocity (v_r_diff, 0.001, 8192) * d_odom_right;
 	v_left = enc_velocity (v_l_diff, 0.001, 8192) * d_odom_left;
 
 	v_base = (v_right + v_left) * 0.5;									// [m/s]
