@@ -7,6 +7,18 @@
 
 #include "main.h"
 
+double trajectory_synthesis(double v_max, double v_ref_prev, double v_end,
+		double acc, double acc_stop, double dist, double dt) {
+	double dist_stop = (v_max - v_end) * (v_max + v_end) / (2 * acc_stop);
+	double v_ref_dist = v_end;
+	if (dist_stop > 0.0) { // jedini slucaj kada ovo nije ispunjeno je ako je v_end >= v_max
+		double dist_norm = clamp(dist / dist_stop, 0.0, 1.0);
+		v_ref_dist = v_end + (v_max - v_end) * dist_norm;
+	}
+	double v_ref_acc = fmin(v_ref_prev + acc * dt, v_max);
+	return fmin(v_ref_acc, v_ref_dist);
+}
+
 void wrap180(volatile double *signal) {
 	if (*signal > 180.0)
 		*signal -= 360.0;
@@ -83,12 +95,12 @@ double velocity_synthesis(double distance, double velocity, double acceleration,
 				dt, abs_v0);
 		abs_v_ref = clamp(abs_v_ref, v_min_acc, v_max);
 	}
-	return clamp(get_sign(distance) * abs_v_ref, -v_max, v_max);
+	return clamp(sign(distance) * abs_v_ref, -v_max, v_max);
 }
 
 double synthesis_v(double velocity, double acceleration, double a_step,
 		double v_des, double dt, double v0) {
-	int8_t acc_sign = get_sign(v_des - v0);
+	int8_t acc_sign = sign(v_des - v0);
 	double v_ret;
 
 	if (velocity * acc_sign > v_des * acc_sign)
@@ -118,7 +130,7 @@ void wrap_ptr(double *signal, double min, double max) {
 		*signal += diff;
 }
 
-short get_sign(double num) {
+short sign(double num) {
 	if (num > 0)
 		return 1;
 	if (num < 0)
@@ -159,7 +171,7 @@ unsigned long unsigned_min(unsigned long a, unsigned long b) {
 
 void vel_ramp_up_ptr(double *signal, double reference, double acc) {
 	if (fabs(reference) - fabs(*signal) > acc)
-		*signal += get_sign(reference) * acc;
+		*signal += sign(reference) * acc;
 	else
 		*signal = reference;
 }
@@ -167,7 +179,7 @@ void vel_ramp_up_ptr(double *signal, double reference, double acc) {
 double vel_ramp_up(double signal, double reference, double acc) {
 	double edited_ref = signal;
 	if (fabs(reference) - fabs(signal) > acc)
-		edited_ref += get_sign(reference) * acc;
+		edited_ref += sign(reference) * acc;
 	else
 		edited_ref = reference;
 	return edited_ref;
@@ -177,7 +189,7 @@ double vel_ramp(double signal, double reference, double acc) {
 	double err = reference - signal;
 
 	if (fabs(err) > acc)
-		signal += get_sign(err) * acc;
+		signal += sign(err) * acc;
 	else
 		signal = reference;
 	return signal;
@@ -191,7 +203,7 @@ double vel_s_curve_up_webots(double *vel, double prev_vel, double vel_ref,
 
 	if (fabs(vel_ref) > fabs(*vel)) {
 		if (fabs(acc_calc) - fabs(acc_approx) > jerk)
-			out = *vel + acc_approx + get_sign(vel_ref) * jerk;
+			out = *vel + acc_approx + sign(vel_ref) * jerk;
 		else
 			out = vel_ref;
 	}
@@ -205,7 +217,7 @@ double vel_s_curve_up(double vel, double accel, double vel_ref, double jerk) {
 	if (fabs(vel_ref) > fabs(vel)) // ako ubrzava
 			{
 		if (fabs(accel_des) - fabs(accel) > jerk) {
-			edited_ref = vel + accel + get_sign(vel_ref) * jerk;
+			edited_ref = vel + accel + sign(vel_ref) * jerk;
 		}
 	}
 	return edited_ref;

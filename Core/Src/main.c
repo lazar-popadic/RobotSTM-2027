@@ -96,7 +96,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	time_start();
 	enc_init();
-	pwm_init();
 	odometry_init();
 	move_init();
   /* USER CODE END 2 */

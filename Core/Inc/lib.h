@@ -16,6 +16,44 @@
 #include "tim.h"
 #include "gpio.h"
 
+#define MAX_NUM_OF_MOVES	10
+
+typedef struct st_pose_2D_stamped {
+	double x;
+	double y;
+	double phi;
+	double v;
+	double w;
+	uint32_t time_ms;
+} pose_2D_stamped;
+
+typedef struct st_move {
+	// automatically set
+	uint16_t id;
+	uint8_t index;
+	int8_t type;
+	uint32_t time_start;
+	uint32_t time_end;
+	// input parameters
+	double x;
+	double y;
+	double phi;
+	int8_t direction;
+	double v_max;
+	double w_max;
+	// feedback
+	int8_t status;
+} move;
+
+typedef struct st_action {
+	// input
+	uint16_t id;
+	uint8_t num_of_moves;
+	move *moves_ptr;
+	// output
+	int8_t status;
+} action;
+
 typedef struct st_pid {
 	double p;
 	double i;
@@ -49,6 +87,7 @@ void
 time_start();
 void
 time_stop();
+uint32_t get_time();
 
 // encoder.h
 int16_t
@@ -67,9 +106,9 @@ void
 pwm_init();
 void pwm_kill();
 void
-pwm_left(float vel);
+pwm_left(double vel, double max_vel);
 void
-pwm_right(float vel);
+pwm_right(double vel, double max_vel);
 void
 set_motor_l_dir(int8_t dir);
 void
@@ -80,18 +119,12 @@ void
 odometry_init();
 void
 update_odom();
-double
-get_x();
-double
-get_y();
-double
-get_phi();
-double
-get_v();
-double
-get_w();
+pose_2D_stamped
+get_odom();
 
 //signal.h
+double trajectory_synthesis(double v_ref, double v_ref_prev, double v_end,
+		double acc, double acc_stop, double dist, double dt);
 void
 wrap180(volatile double *signal);
 void
@@ -109,7 +142,7 @@ double synthesis_v(double velocity, double acceleration, double a_step,
 		double v_des, double dt, double v0);
 double wrap(double signal, double min, double max);
 void wrap_ptr(double *signal, double min, double max);
-short get_sign(double num);
+short sign(double num);
 double scale_vel_ref(volatile double *ref_1, volatile double *ref_2,
 		double limit);
 double abs_max(double a, double b);

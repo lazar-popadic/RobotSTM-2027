@@ -12,44 +12,47 @@ static void rotate();
 static void go_to_xy();
 static void disassemble();
 
+static void reset_all_pids();
+
+move moves[MAX_NUM_OF_MOVES];
+action ctrl_action;
+volatile uint8_t ctrl_num_of_moves = 0;
+uint8_t move_index = 0;
+
 int8_t direction_;
-double x_base_, y_base_, phi_base_, v_base_, w_base_;
+static pose_2D_stamped odom_;
 double x_ref_, y_ref_, phi_ref_;
 double v_ref_, w_ref_, v_ctrl_, w_ctrl_;
-double prev_v_, prev_w_;
-double a_, alpha_;
-int8_t move_type_;
-double dt_;
+double dt_ = 0.001;
+
 double v_max_temp_, w_max_temp_;
-double V_MIN_, V_MAX_, W_MIN_, W_MAX_, V_MIN_STACKED_;
+double V_MIN_ = 0.1;
+double V_MAX_ = 1.5;
+double W_MIN_ = 0.628;
+double W_MAX_ = 12.57;
+double V_MIN_STACKED_ = 0.01;
+
+double MOTOR_V_MAX_ = 1.6;
+double V_STEP_MAX = 0.05;	// [m/ms]
 double L_;
-double STACKED_TIME_;
-double D_TOL_, D_LONG_TOL_, D_PROJ_TOL_, D_SHORT_TOL_, PHI_TOL_;
+double STACKED_TIME_ = 0.06;
+double D_TOL_ = 0.01; // absolute distance from target
+double D_PROJ_TOL_ = 0.0; // projected distance from target
+double D_LONG_TOL_ = 0.12; // distance before rotation is used fully
+double D_SHORT_TOL_ = 0.03; // minimal distance for rotation during translation
+double PHI_TOL_ = 0.0157; // absolute angle from target
 double v_right_ref_, v_left_ref_;
 double v_right_, v_left_;
-double MOTOR_V_MAX_;
 double phi_error_, x_error_, y_error_;
-int8_t movement_state_ = 0;
 unsigned stacked_cnt_ = 0;
 double V_SLOWED_MAX_ = 0.75;
 volatile pid v_loop, w_loop, d_loop, phi_loop;
 double distance_, distance_proj_;        // [m]
 
 void move_init() {
-	STACKED_TIME_ = 0.06;
-
-	dt_ = 0.001;
-	V_MAX_ = 1.5;
-	V_MIN_STACKED_ = 0.01;
-	W_MAX_ = 12.57;
-	V_SLOWED_MAX_ = 0.75;
-	MOTOR_V_MAX_ = 1.6;
-	L_ = 0.1545;
-	D_TOL_ = 0.01; // absolute distance from target
-	D_PROJ_TOL_ = 0.005; // projected distance from target
-	D_LONG_TOL_ = 0.12; // distance before rotation is used fully
-	D_SHORT_TOL_ = 0.03; // minimal distance for rotation during translation
-	PHI_TOL_ = 0.0157; // absolute angle from target
+	ctrl_action.id = 0;
+	ctrl_action.moves_ptr = moves;
+	ctrl_action.num_of_moves = ctrl_num_of_moves;
 
 	v_max_temp_ = V_MAX_;
 	w_max_temp_ = W_MAX_;
@@ -61,16 +64,16 @@ void move_init() {
 }
 
 void control_loop(double dt) {
-	x_base_ = get_x();
-	y_base_ = get_y();
-	phi_base_ = get_phi();
-	w_base_ = get_w();
-	v_base_ = get_v();
+	pwm_init();
+	odom_ = get_odom();
 
-	switch (move_type_) {
+	if (moves[move_index].status < 0)
+		move_index++;
+	if (move_index >= ctrl_num_of_moves)
+		ctrl_action.status = -1;
+
+	switch (moves[move_index].type) {
 	case -1:
-		v_ref_ = 0;
-		w_ref_ = 0;
 		stop();
 		break;
 	case 0:
@@ -86,29 +89,22 @@ void control_loop(double dt) {
 		rotate();
 		break;
 	}
-	a_ = (v_base_ - prev_v_) / dt_;
-	alpha_ = (w_base_ - prev_w_) / dt_;
-
-	prev_v_ = v_base_;
-	prev_w_ = w_base_;
 }
 
 void velocity_loop(double dt) {
 	// ulaz: referenca za brzine levog i desnog: v_ref_, w_ref_
-	double v_err = v_ref_ - get_v();
-	double w_err = w_ref_ - get_w();
+	double v_err = v_ref_ - get_odom().v;
+	double w_err = w_ref_ - get_odom().w;
 	v_ctrl_ = calc_pid(&v_loop, v_err, dt);
 	w_ctrl_ = calc_pid(&w_loop, w_err, dt);
 
 	// izlaz pwm
-//	v_right_ = vel_ramp(v_right_, v_ctrl_ + w_ctrl_ * L_ * 0.5, 0.1);
-//	v_left_ = vel_ramp(v_left_, v_ctrl_ - w_ctrl_ * L_ * 0.5, 0.1);
-	v_right_ = v_ctrl_ + w_ctrl_ * L_ * 0.5;
-	v_left_ = v_ctrl_ - w_ctrl_ * L_ * 0.5;
+	v_right_ = vel_ramp(v_right_, v_ctrl_ + w_ctrl_ * L_ * 0.5, V_STEP_MAX);
+	v_left_ = vel_ramp(v_left_, v_ctrl_ - w_ctrl_ * L_ * 0.5, V_STEP_MAX);
 	scale_vel_ref(&v_right_, &v_left_, MOTOR_V_MAX_);
 
-	pwm_right(v_right_);
-	pwm_left(v_left_);
+	pwm_right(v_right_, MOTOR_V_MAX_);
+	pwm_left(v_left_, MOTOR_V_MAX_);
 }
 
 double get_v_r() {
@@ -121,44 +117,50 @@ double get_v_l() {
 
 // TODO: uradi opet
 static void rotate() {
-	phi_error_ = wrap(phi_ref_ - phi_base_, -M_PI, M_PI);
-	if (fabs(phi_error_) < PHI_TOL_ && fabs(get_w()) < W_MIN_ * 2.0) {
-		movement_state_ = -1;
+	switch (moves[move_index].status) {
+	case 0:
+		reset_all_pids();
+		/*
+		 * TODO: calculate:
+		 * - pocetne brzine
+		 * - Max brzine
+		 * - Step brzine (nagib rampi), i za ubrzavanje i usporavanje
+		 * - Krajnje brzine
+		 */
+		moves[move_index].status = 1;
+		break;
+	case 1:
+		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
+		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_ * 2.0) {
+			moves[move_index].status = -1;
+		}
+
+		v_ref_ = 0;
+		// TODO: obicna sinteza trajektorije (feedforward) + pid (feedback)
+		//	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
+		//			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0,
+		//			W_MIN_ACC_temp_);
+		break;
 	}
-	if (movement_state_ == 0) {
-		reset_pid(&v_loop);
-		reset_pid(&w_loop);
-		movement_state_ = 1;
-	}
-	v_ref_ = 0;
-// TODO: obicna sinteza trajektorije (feedforward) + pid (feedback)
-//	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
-//			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0,
-//			W_MIN_ACC_temp_);
 }
 
 // TODO: uradi opet
 static void go_to_xy() {
-	if (movement_state_ == 0) {
-		movement_state_ = 1;
-	}
-
-	x_error_ = x_ref_ - x_base_;
-	y_error_ = y_ref_ - y_base_;
-	phi_error_ = wrap(
-			atan2(y_error_, x_error_) - phi_base_
-					+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
-	switch (movement_state_) {
+	switch (moves[move_index].status) {
 	case 0:
-		v_ref_ = 0;
-		w_ref_ = 0;
-		reset_pid(&v_loop);
-		reset_pid(&w_loop);
-		movement_state_ = 1;
+		reset_all_pids();
+		/*
+		 * TODO: calculate:
+		 * - pocetne brzine
+		 * - Max brzine
+		 * - Step brzine (nagib rampi), i za ubrzavanje i usporavanje
+		 * - Krajnje brzine
+		 */
+		moves[move_index].status = 1;
 		break;
 	case 1:
-		if (fabs(phi_error_) < PHI_TOL_ * 3.0 && fabs(get_w()) < W_MIN_ * 2.0) {
-			movement_state_ = 2;
+		if (fabs(phi_error_) < PHI_TOL_ * 3.0 && fabs(odom_.w) < W_MIN_ * 2.0) {
+			moves[move_index].status = 2;
 			w_max_temp_ = W_MAX_;
 		}
 		v_ref_ = 0;
@@ -168,20 +170,25 @@ static void go_to_xy() {
 //				0, 0.0, W_MIN_ACC_temp_);
 		break;
 	case 2:
-		v_ref_ = 0;
-		w_ref_ = 0;
-		reset_pid(&v_loop);
-		reset_pid(&w_loop);
-		movement_state_ = 3;
+		reset_all_pids();
+		/*
+		 * TODO: calculate:
+		 * - pocetne brzine
+		 * - Max brzine
+		 * - Step brzine (nagib rampi), i za ubrzavanje i usporavanje
+		 * - Krajnje brzine
+		 */
+		moves[move_index].status = 3;
 		break;
 	case 3:
-		if (distance_proj_ < D_PROJ_TOL_ && fabs(get_v()) < V_MIN_ * 2.0
-				&& fabs(get_w()) < W_MIN_ * 2.0) {
+
+		if (distance_proj_ < D_PROJ_TOL_ && fabs(odom_.v) < V_MIN_ * 2.0
+				&& fabs(odom_.w) < W_MIN_ * 2.0) {
 			if (fabs(distance_) < D_TOL_) {
-				movement_state_ = -1;
+				moves[move_index].status = -1;
 				break;
 			} else {
-				movement_state_ = -5;
+				moves[move_index].status = -5;
 				break;
 			}
 // TODO: automatski backing umesto da ubije kretnju (sa proverom da li moze da se izvuce)
@@ -189,11 +196,16 @@ static void go_to_xy() {
 //				&& fabs(w_base_) < W_MIN_ * 2.0) {
 //			movement_state_ = -4;
 //			break;
-		} else if (stacked(STACKED_TIME_, v_base_, V_MIN_STACKED_, 1.0 / dt_,
+		} else if (stacked(STACKED_TIME_, odom_.v, V_MIN_STACKED_, 1.0 / dt_,
 				&stacked_cnt_)) {
-			movement_state_ = -3;
+			moves[move_index].status = -3;
 			break;
 		}
+		x_error_ = x_ref_ - odom_.x;
+		y_error_ = y_ref_ - odom_.y;
+		phi_error_ = wrap(
+				atan2(y_error_, x_error_) - odom_.phi
+						+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
 		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
 		distance_proj_ = distance_ * cos(phi_error_);
 // TODO: obicna sinteza trajektorije (feedforward) + pid (feedback)
@@ -210,28 +222,29 @@ static void go_to_xy() {
 	}
 }
 
-// TODO: uradi opet
+// TODO: proveri za status
 static void stop() {
-	movement_state_ = 0;
+	moves[move_index].status = 0;
 	v_ref_ = 0;
 	w_ref_ = 0;
 	stacked_cnt_ = 0;
-	x_ref_ = x_base_;
-	y_ref_ = y_base_;
-	phi_ref_ = phi_base_;
+	x_ref_ = odom_.x;
+	y_ref_ = odom_.y;
+	phi_ref_ = odom_.phi;
 	direction_ = 1;
 	v_max_temp_ = V_MAX_;
 	w_max_temp_ = W_MAX_;
-	move_type_ = 0;
+	reset_all_pids();
+}
+
+static void disassemble() {
+	stop();
+	pwm_kill();
+}
+
+static void reset_all_pids() {
 	reset_pid(&d_loop);
 	reset_pid(&phi_loop);
 	reset_pid(&v_loop);
 	reset_pid(&w_loop);
-}
-
-// TODO: uradi opet
-static void disassemble() {
-	stop();
-	pwm_kill();
-//	time_stop();
 }

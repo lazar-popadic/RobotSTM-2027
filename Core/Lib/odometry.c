@@ -20,8 +20,7 @@ volatile int16_t enc_l_sum;		// [inc]
 volatile int16_t enc_r_sum;		// [inc]
 
 volatile double v_right, v_left;
-volatile double v_base, w_base;
-volatile double x_base = 0.0, y_base = 0.0, phi_base = 0.0;
+volatile pose_2D_stamped odom;
 
 void
 odometry_init ()
@@ -42,43 +41,20 @@ update_odom ()
 	v_right = -enc_velocity (v_r_diff, 0.001, 8192) * d_odom_right;
 	v_left = enc_velocity (v_l_diff, 0.001, 8192) * d_odom_left;
 
-	v_base = (v_right + v_left) * 0.5;									// [m/s]
-	w_base = (v_right - v_left) * L_wheel_recip;				// [rad/s]
-	mid_angle = (phi_base + w_base * 0.005);						// [rad + 0.5*rad/s * 0.001s = rad]
+	odom.v = (v_right + v_left) * 0.5;									// [m/s]
+	odom.w = (v_right - v_left) * L_wheel_recip;				// [rad/s]
+	mid_angle = (odom.phi + odom.w * 0.005);						// [rad + 0.5*rad/s * 0.001s = rad]
 
-	x_base += v_base * cos (mid_angle) * 0.001;									// [mm/ms * 1ms = mm]
-	y_base += v_base * sin (mid_angle) * 0.001;
-	phi_base += w_base * 0.001;													// [0.001s * rad/s = rad]
+	odom.x += odom.v * cos (mid_angle) * 0.001;									// [mm/ms * 1ms = mm]
+	odom.y += odom.v * sin (mid_angle) * 0.001;
+	odom.phi += odom.w * 0.001;													// [0.001s * rad/s = rad]
 
-	wrap2Pi (&phi_base);
+	wrap2Pi (&odom.phi);
+	odom.time_ms = get_time();
 }
 
-double
-get_x ()
+pose_2D_stamped
+get_odom()
 {
-	return x_base;
-}
-
-double
-get_y ()
-{
-	return y_base;
-}
-
-double
-get_phi ()
-{
-	return phi_base;
-}
-
-double
-get_v ()
-{
-	return v_base;
-}
-
-double
-get_w ()
-{
-	return w_base;
+	return odom;
 }

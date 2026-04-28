@@ -31,3 +31,8 @@ void time_start() {
 void time_stop() {
 	HAL_TIM_Base_Stop_IT(&htim10);
 }
+
+uint32_t get_time()
+{
+	return sys_time_ms;
+}
