@@ -12,6 +12,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "tim.h"
 #include "gpio.h"
@@ -28,18 +29,27 @@ typedef struct st_pose_2D_stamped {
 } pose_2D_stamped;
 
 typedef struct st_move {
-	// automatically set
-	uint16_t id;
-	uint8_t index;
-	int8_t type;
-	uint32_t time_start;
-	uint32_t time_end;
 	// input parameters
+	int8_t type;
 	double x;
 	double y;
 	double phi;
 	int8_t direction;
+	double v_des;
+	double w_des;
+	// automatically set
+	uint8_t index;
+
+	double v_0;
+	double v_end;
+	double a;
+	double a_stop;
 	double v_max;
+
+	double w_0;
+	double w_end;
+	double alpha;
+	double alpha_stop;
 	double w_max;
 	// feedback
 	int8_t status;
@@ -52,6 +62,8 @@ typedef struct st_action {
 	move *moves_ptr;
 	// output
 	int8_t status;
+	uint32_t time_start;
+	uint32_t time_end;
 } action;
 
 typedef struct st_pid {
