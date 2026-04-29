@@ -34,8 +34,6 @@ void pwm_kill() {
 	}
 }
 
-// TODO: posalji max_v umesto ovaj glupi hardcode
-
 void pwm_left(double vel, double max_vel) {
 	int16_t pwm;
 	int8_t dir = sign(vel);

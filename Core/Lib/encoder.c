@@ -35,7 +35,6 @@ void enc_init() {
 }
 
 double enc_velocity(int16_t diff, double deltaT, uint16_t impulse_per_2Pi) {
-	// TODO: proveri u ros-u u kojim jedinicama su brzine
 	double vel, ang;
 	ang = (double) diff / (double) impulse_per_2Pi * 2 * M_PI;	// predjeni ugao u radijanima
 	vel = ang / deltaT;

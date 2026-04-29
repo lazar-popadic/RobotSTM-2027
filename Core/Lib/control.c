@@ -9,6 +9,7 @@
 
 static void stop();
 static void rotate(double dt);
+static void translate(double dt);
 static void go_to_xy(double dt);
 static void disassemble();
 
@@ -90,26 +91,37 @@ void action_init(action *action_ptr) {
 	for (uint8_t mi = 0; mi < action_ptr->num_of_moves; mi++) {
 		move *src = &action_ptr->moves_ptr[mi];
 
+		src->index = mi;
 		switch (src->type) {
 		default:
-			src->index = mi;
 			src->v_0 = 0.0;
 			src->v_end = 0.0;
 			src->a = 0.0;
 			src->a_stop = 0.0;
 			src->v_max = 0.0;
+
 			src->w_0 = 0.0;
 			src->w_end = 0.0;
 			src->alpha = 0.0;
 			src->alpha_stop = 0.0;
+			src->w_max = 0.0;
 			break;
-		case 1:	// go to xy
+		case 1:	// translate
 			break;
-		case 2:		// po kruznici
+		case 2:	// po kruznici
 			break;
 		case 3:	// rotacija
-			src->index = mi;
+			src->v_0 = 0.0;
+			src->v_end = 0.0;
+			src->a = A_MAX_;
+			src->a_stop = A_MAX_;
 
+			src->w_0 = 0.0;
+			src->w_end = 0.0;
+			src->alpha = 2 * A_MAX_ / L_;
+			src->alpha_stop = src->alpha;
+			break;
+		case 4:	// go to xy
 			src->v_0 = 0.0;
 			src->v_end = 0.0;
 			src->a = 0.0;
@@ -145,13 +157,16 @@ void control_loop(double dt) {
 		disassemble();
 		break;
 	case 1:
-		go_to_xy(dt);
+		translate(dt);
 		break;
 	case 2:
 		// TODO: po kruznici
 		break;
 	case 3:
 		rotate(dt);
+		break;
+	case 4:
+		go_to_xy(dt);
 		break;
 	}
 	prev_action_id_ = ctrl_action.id;
@@ -194,29 +209,60 @@ static void rotate(double dt) {
 	}
 }
 
+static void translate(double dt) {
+	// TODO: uradi
+}
+
 static void go_to_xy(double dt) {
 	switch (moves[move_index].status) {
 	case 0:
+		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
 		reset_all_pids();
-
+		moves[move_index].w_max = compute_v_peak(moves[move_index].w_0,
+				moves[move_index].w_end, moves[move_index].w_des,
+				moves[move_index].alpha, moves[move_index].alpha_stop,
+				phi_error_);
 		moves[move_index].status = 1;
 		// namerno izbacen break
 	case 1:
+		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
 		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves[move_index].status = 2;
 		}
 		v_ref_ = 0;
-//		w_ref_ff_ = trajectory_synthesis(w_max_temp_, w_ref_ff_, w_end_, alpha_,
-//						alpha_stop_, phi_error_, dt);
+		w_ref_ff_ = trajectory_synthesis(moves[move_index].w_max, w_ref_ff_,
+				moves[move_index].w_end, moves[move_index].alpha,
+				moves[move_index].alpha_stop, phi_error_, dt);
 		break;
 	case 2:
+		x_error_ = x_ref_ - odom_.x;
+		y_error_ = y_ref_ - odom_.y;
+		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
+		moves[move_index].v_max = compute_v_peak(moves[move_index].v_0,
+				moves[move_index].v_end, moves[move_index].v_des,
+				moves[move_index].a, moves[move_index].a_stop, distance_);
+
+		phi_error_ = wrap(
+				atan2(y_error_, x_error_) - odom_.phi
+						+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
+		moves[move_index].w_max = compute_v_peak(moves[move_index].w_0,
+				moves[move_index].w_end, moves[move_index].w_des,
+				moves[move_index].alpha, moves[move_index].alpha_stop,
+				phi_error_);
 		reset_all_pids();
 		moves[move_index].status = 3;
 		// namerno izbacen break
 	case 3:
+		x_error_ = x_ref_ - odom_.x;
+		y_error_ = y_ref_ - odom_.y;
+		phi_error_ = wrap(
+				atan2(y_error_, x_error_) - odom_.phi
+						+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
+		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
+		distance_proj_ = distance_ * cos(phi_error_);
 
-		if (distance_proj_ < D_PROJ_TOL_ && fabs(odom_.v) < V_MIN_ * 2.0
-				&& fabs(odom_.w) < W_MIN_ * 2.0) {
+		if (distance_proj_ < D_PROJ_TOL_ && fabs(odom_.v) < V_MIN_
+				&& fabs(odom_.w) < W_MIN_) {
 			if (fabs(distance_) < D_TOL_) {
 				moves[move_index].status = -1;
 				break;
@@ -234,23 +280,14 @@ static void go_to_xy(double dt) {
 			moves[move_index].status = -3;
 			break;
 		}
-		x_error_ = x_ref_ - odom_.x;
-		y_error_ = y_ref_ - odom_.y;
-		phi_error_ = wrap(
-				atan2(y_error_, x_error_) - odom_.phi
-						+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
-		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
-		distance_proj_ = distance_ * cos(phi_error_);
-// TODO: obicna sinteza trajektorije (feedforward) + pid (feedback)
-//		v_ref_ = velocity_synthesis(distance_proj_ * direction_, v_base_, a_,
-//				j_max_temp_, stopping_distance_, v_max_temp_, V_MIN_, dt_, 0.0,
-//				obst_in_loop_budz_, V_SLOWED_MAX_, V_MIN_ACC_);
-// TODO: samo pid feedback
-//		w_ref_ = P_w_
-//				* clamp(
-//						(distance_ - D_SHORT_TOL_)
-//								/ (D_LONG_TOL_ - D_SHORT_TOL_), 0.0, 1.0)
-//				* phi_error_;
+
+		v_ref_ff_ = trajectory_synthesis(moves[move_index].v_max, v_ref_ff_,
+				moves[move_index].v_end, moves[move_index].a,
+				moves[move_index].a_stop, distance_, dt);
+		double phi_err_mod_ = clamp(
+				(distance_ - D_SHORT_TOL_) / (D_LONG_TOL_ - D_SHORT_TOL_), 0.0,
+				1.0) * phi_error_;
+		w_ref_ff_ = calc_pid(&phi_loop, phi_err_mod_, dt);
 		break;
 	}
 }
