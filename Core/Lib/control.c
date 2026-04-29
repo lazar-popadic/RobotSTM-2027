@@ -9,7 +9,6 @@
 
 static void stop();
 static void rotate(double dt);
-static void translate(double dt);
 static void go_to_xy(double dt);
 static void disassemble();
 
@@ -73,7 +72,6 @@ void action_init(action *action_ptr) {
 	 - alpha, alpha_stop
 	 */
 	/*
-	 TODO: postavi sve ovo za svaku kretnju
 	 uint8_t index;
 
 	 double v_0;
@@ -90,6 +88,12 @@ void action_init(action *action_ptr) {
 	 */
 	for (uint8_t mi = 0; mi < action_ptr->num_of_moves; mi++) {
 		move *src = &action_ptr->moves_ptr[mi];
+		move *prev = NULL;
+		move *next = NULL;
+		if (mi > 0)
+			prev = &action_ptr->moves_ptr[mi - 1];
+		if (mi + 1 < action_ptr->num_of_moves)
+			next = &action_ptr->moves_ptr[mi + 1];
 
 		src->index = mi;
 		switch (src->type) {
@@ -106,7 +110,24 @@ void action_init(action *action_ptr) {
 			src->alpha_stop = 0.0;
 			src->w_max = 0.0;
 			break;
-		case 1:	// translate
+		case 1:	// go to xy
+			// TODO: tranzicije za sledecu kretnju:
+			//			- prethodna je 1 ili 2: prekopiraj vrednosti end -> 0
+			//			- sledeca je 1
+			//			- sledeca je 2
+			if (0 && prev && (prev->type == 1 || prev->type == 2)) {
+
+			} else {
+				src->v_0 = 0.0;
+				src->v_end = 0.0;
+				src->a = 0.0;
+				src->a_stop = 0.0;
+
+				src->w_0 = 0.0;
+				src->w_end = 0.0;
+				src->alpha = 2 * A_MAX_ / L_;
+				src->alpha_stop = src->alpha;
+			}
 			break;
 		case 2:	// po kruznici
 			break;
@@ -115,17 +136,6 @@ void action_init(action *action_ptr) {
 			src->v_end = 0.0;
 			src->a = A_MAX_;
 			src->a_stop = A_MAX_;
-
-			src->w_0 = 0.0;
-			src->w_end = 0.0;
-			src->alpha = 2 * A_MAX_ / L_;
-			src->alpha_stop = src->alpha;
-			break;
-		case 4:	// go to xy
-			src->v_0 = 0.0;
-			src->v_end = 0.0;
-			src->a = 0.0;
-			src->a_stop = 0.0;
 			src->v_max = 0.0;
 
 			src->w_0 = 0.0;
@@ -133,6 +143,7 @@ void action_init(action *action_ptr) {
 			src->alpha = 2 * A_MAX_ / L_;
 			src->alpha_stop = src->alpha;
 			break;
+		case 4:
 		}
 		memcpy(&moves[mi], src, sizeof(move));
 	}
@@ -157,16 +168,13 @@ void control_loop(double dt) {
 		disassemble();
 		break;
 	case 1:
-		translate(dt);
+		go_to_xy(dt);
 		break;
 	case 2:
 		// TODO: po kruznici
 		break;
 	case 3:
 		rotate(dt);
-		break;
-	case 4:
-		go_to_xy(dt);
 		break;
 	}
 	prev_action_id_ = ctrl_action.id;
@@ -209,20 +217,21 @@ static void rotate(double dt) {
 	}
 }
 
-static void translate(double dt) {
-	// TODO: uradi
-}
-
 static void go_to_xy(double dt) {
 	switch (moves[move_index].status) {
 	case 0:
-		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
-		reset_all_pids();
-		moves[move_index].w_max = compute_v_peak(moves[move_index].w_0,
-				moves[move_index].w_end, moves[move_index].w_des,
-				moves[move_index].alpha, moves[move_index].alpha_stop,
-				phi_error_);
-		moves[move_index].status = 1;
+		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
+			moves[move_index].status = 3;
+		} else {
+			phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
+			reset_all_pids();
+			moves[move_index].w_max = compute_v_peak(moves[move_index].w_0,
+					moves[move_index].w_end, moves[move_index].w_des,
+					moves[move_index].alpha, moves[move_index].alpha_stop,
+					phi_error_);
+			moves[move_index].v_max = 0.0;
+			moves[move_index].status = 1;
+		}
 		// namerno izbacen break
 	case 1:
 		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
