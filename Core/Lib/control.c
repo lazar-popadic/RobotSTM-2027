@@ -91,17 +91,21 @@ void action_init(action *action_ptr) {
 		move *src = &action_ptr->moves_ptr[mi];
 
 		switch (src->type) {
-		case -1:
-//				stop();
+		default:
+			src->index = mi;
+			src->v_0 = 0.0;
+			src->v_end = 0.0;
+			src->a = 0.0;
+			src->a_stop = 0.0;
+			src->v_max = 0.0;
+			src->w_0 = 0.0;
+			src->w_end = 0.0;
+			src->alpha = 0.0;
+			src->alpha_stop = 0.0;
 			break;
-		case 0:
-//				disassemble();
-			break;
-		case 1:
-//				go_to_xy(dt);
+		case 1:	// go to xy
 			break;
 		case 2:		// po kruznici
-
 			break;
 		case 3:	// rotacija
 			src->index = mi;
@@ -179,11 +183,9 @@ static void rotate(double dt) {
 		moves[move_index].status = 1;
 		// namerno izbacen break
 	case 1:
-
 		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves[move_index].status = -1;
 		}
-
 		v_ref_ff_ = 0;
 		w_ref_ff_ = trajectory_synthesis(moves[move_index].w_max, w_ref_ff_,
 				moves[move_index].w_end, moves[move_index].alpha,
