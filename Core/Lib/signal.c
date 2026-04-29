@@ -19,6 +19,14 @@ double trajectory_synthesis(double v_max, double v_ref_prev, double v_end,
 	return fmin(v_ref_acc, v_ref_dist);
 }
 
+double compute_v_peak(double v0, double v_end, double v_max, double a,
+		double a_stop, double dist) {
+	double A = 2.0 * dist * a * a_stop + a_stop * v0 * v0 + a * v_end * v_end;
+	double B = a + a_stop;
+	double v_peak = sqrt(fmax(0.0, A / B));
+	return fmin(v_peak, v_max);
+}
+
 void wrap180(volatile double *signal) {
 	if (*signal > 180.0)
 		*signal -= 360.0;

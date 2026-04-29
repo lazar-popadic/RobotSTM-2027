@@ -8,8 +8,8 @@
 #include "main.h"
 
 static void stop();
-static void rotate();
-static void go_to_xy();
+static void rotate(double dt);
+static void go_to_xy(double dt);
 static void disassemble();
 
 static void reset_all_pids();
@@ -18,25 +18,36 @@ move moves[MAX_NUM_OF_MOVES];
 action ctrl_action;
 volatile uint8_t ctrl_num_of_moves = 0;
 uint8_t move_index = 0;
+uint16_t prev_action_id_ = 0xffff;
 
 int8_t direction_;
 static pose_2D_stamped odom_;
 double x_ref_, y_ref_, phi_ref_;
-double v_ref_, w_ref_, v_ctrl_, w_ctrl_;
+double v_ref_, w_ref_;
+double v_ctrl_, w_ctrl_;
+double v_ref_ff_, w_ref_ff_;
 double dt_ = 0.001;
 
-double v_max_temp_, w_max_temp_;
 double V_MIN_ = 0.1;
 double V_MAX_ = 1.5;
 double W_MIN_ = 0.628;
 double W_MAX_ = 12.57;
 double V_MIN_STACKED_ = 0.01;
 
+double w_max_temp_ = 0.0;
+double w_end_ = 0.0;
+double alpha_ = 0.0;
+double alpha_stop_ = 0.0;
+double v_max_temp_ = 0.0;
+double v_end_ = 0.0;
+double a_ = 0.0;
+double a_stop_ = 0.0;
+
 double MOTOR_V_MAX_ = 1.6;
-double V_STEP_MAX = 0.05;	// [m/ms]
+double A_MAX__ = 1.0;	// [m/s^2]
 double L_;
 double STACKED_TIME_ = 0.06;
-double D_TOL_ = 0.01; // absolute distance from target
+double D_TOL_ = 0.003; // absolute distance from target
 double D_PROJ_TOL_ = 0.0; // projected distance from target
 double D_LONG_TOL_ = 0.12; // distance before rotation is used fully
 double D_SHORT_TOL_ = 0.03; // minimal distance for rotation during translation
@@ -63,6 +74,12 @@ void move_init() {
 	init_pid(&w_loop, 92.0, 0.025, 28.0, 1680, 280);
 }
 
+// TODO: poziva se kada se promeni id za akciju, setuje moves, i njihove tranzicije (na osnovu idealnih situacija)
+void action_init()
+{
+
+}
+
 void control_loop(double dt) {
 	pwm_init();
 	odom_ = get_odom();
@@ -80,13 +97,13 @@ void control_loop(double dt) {
 		disassemble();
 		break;
 	case 1:
-		go_to_xy();
+		go_to_xy(dt);
 		break;
 	case 2:
 		// TODO: po kruznici
 		break;
 	case 3:
-		rotate();
+		rotate(dt);
 		break;
 	}
 }
@@ -99,8 +116,8 @@ void velocity_loop(double dt) {
 	w_ctrl_ = calc_pid(&w_loop, w_err, dt);
 
 	// izlaz pwm
-	v_right_ = vel_ramp(v_right_, v_ctrl_ + w_ctrl_ * L_ * 0.5, V_STEP_MAX);
-	v_left_ = vel_ramp(v_left_, v_ctrl_ - w_ctrl_ * L_ * 0.5, V_STEP_MAX);
+	v_right_ = vel_ramp(v_right_, v_ctrl_ + w_ctrl_ * L_ * 0.5, A_MAX__ * dt);
+	v_left_ = vel_ramp(v_left_, v_ctrl_ - w_ctrl_ * L_ * 0.5, A_MAX__ * dt);
 	scale_vel_ref(&v_right_, &v_left_, MOTOR_V_MAX_);
 
 	pwm_right(v_right_, MOTOR_V_MAX_);
@@ -115,71 +132,70 @@ double get_v_l() {
 	return v_left_;
 }
 
-// TODO: uradi opet
-static void rotate() {
+// TODO: w_max, w_end, alpha, alpha stop treba da se racunaju na nivou akcije za svaku kretnju
+static void rotate(double dt) {
+	phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
 	switch (moves[move_index].status) {
 	case 0:
 		reset_all_pids();
-		/*
-		 * TODO: calculate:
-		 * - pocetne brzine
-		 * - Max brzine
-		 * - Step brzine (nagib rampi), i za ubrzavanje i usporavanje
-		 * - Krajnje brzine
-		 */
+
+		alpha_ = 2 * A_MAX__ / L_;
+		alpha_stop_ = alpha_;
+		w_end_ = 0.0;	// U rotaciji nema nenultih tranzicija
+		w_max_temp_ = compute_v_peak(get_odom().w, w_end_, W_MAX_, alpha_,
+				alpha_stop_, fabs(phi_error_));
+
 		moves[move_index].status = 1;
-		break;
+		// namerno izbacen break
 	case 1:
-		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
-		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_ * 2.0) {
+		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves[move_index].status = -1;
 		}
 
-		v_ref_ = 0;
-		// TODO: obicna sinteza trajektorije (feedforward) + pid (feedback)
-		//	w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_, j_rot_max_temp_,
-		//			stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0, 0, 0.0,
-		//			W_MIN_ACC_temp_);
+		v_ref_ff_ = 0;
+		w_ref_ff_ = trajectory_synthesis(w_max_temp_, w_ref_ff_, w_end_, alpha_,
+				alpha_stop_, phi_error_, dt);
 		break;
 	}
 }
 
-// TODO: uradi opet
-static void go_to_xy() {
+static void go_to_xy(double dt) {
 	switch (moves[move_index].status) {
 	case 0:
 		reset_all_pids();
 		/*
 		 * TODO: calculate:
-		 * - pocetne brzine
 		 * - Max brzine
 		 * - Step brzine (nagib rampi), i za ubrzavanje i usporavanje
 		 * - Krajnje brzine
 		 */
+		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
+		alpha_ = 2 * A_MAX__ / L_;
+		alpha_stop_ = alpha_;
+		w_end_ = 0.0;	// U rotaciji nema nenultih tranzicija
+		w_max_temp_ = compute_v_peak(get_odom().w, w_end_, W_MAX_, alpha_,
+				alpha_stop_, fabs(phi_error_));
 		moves[move_index].status = 1;
-		break;
+		// namerno izbacen break
 	case 1:
-		if (fabs(phi_error_) < PHI_TOL_ * 3.0 && fabs(odom_.w) < W_MIN_ * 2.0) {
+		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves[move_index].status = 2;
 			w_max_temp_ = W_MAX_;
 		}
 		v_ref_ = 0;
-// TODO: obicna sinteza trajektorije (feedforward) + pid (feedback)
-//		w_ref_ = velocity_synthesis(phi_error_, w_base_, alpha_,
-//				j_rot_max_temp_, stopping_angle_, w_max_temp_, W_MIN_, dt_, 0.0,
-//				0, 0.0, W_MIN_ACC_temp_);
+		w_ref_ff_ = trajectory_synthesis(w_max_temp_, w_ref_ff_, w_end_, alpha_,
+						alpha_stop_, phi_error_, dt);
 		break;
 	case 2:
 		reset_all_pids();
 		/*
 		 * TODO: calculate:
-		 * - pocetne brzine
 		 * - Max brzine
 		 * - Step brzine (nagib rampi), i za ubrzavanje i usporavanje
 		 * - Krajnje brzine
 		 */
 		moves[move_index].status = 3;
-		break;
+		// namerno izbacen break
 	case 3:
 
 		if (distance_proj_ < D_PROJ_TOL_ && fabs(odom_.v) < V_MIN_ * 2.0

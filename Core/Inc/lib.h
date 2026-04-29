@@ -125,6 +125,8 @@ get_odom();
 //signal.h
 double trajectory_synthesis(double v_ref, double v_ref_prev, double v_end,
 		double acc, double acc_stop, double dist, double dt);
+double compute_v_peak(double v0, double v_end, double v_max, double a,
+		double a_stop, double dist);
 void
 wrap180(volatile double *signal);
 void
