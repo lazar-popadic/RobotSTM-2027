@@ -19,14 +19,16 @@ action ctrl_action;
 volatile uint8_t ctrl_num_of_moves = 0;
 uint8_t move_index = 0;
 uint16_t prev_action_id_ = 0xffff;
+double first_x = 0.0, first_y = 0.0, first_phi = 0.0;
+uint8_t transition = 0;
 
 int8_t direction_;
 static pose_2D_stamped odom_;
 double x_ref_, y_ref_, phi_ref_;
-double v_ref_, w_ref_;
-double v_ctrl_, w_ctrl_;
-double v_ref_ff_, w_ref_ff_;
-double dt_ = 0.001;
+double v_ref_ = 0.0, w_ref_ = 0.0;
+double v_ctrl_ = 0.0, w_ctrl_ = 0.0;
+double v_ref_ff_ = 0.0, w_ref_ff_ = 0.0;
+double v_ref_fb_ = 0.0, w_ref_fb_ = 0.0;
 
 double V_MIN_ = 0.1;
 double V_MAX_ = 1.5;
@@ -63,8 +65,11 @@ void move_init() {
 }
 
 void action_init(action *action_ptr) {
+	first_x = get_odom().x;
+	first_y = get_odom().y;
+	first_phi = get_odom().phi;
 	/*
-	 TODO: uradi tranzicije (na osnovu idealnih situacija)
+	 TODO: uradi tranzicije (na osnovu referentnih vrednosti idealnih situacija))
 	 uticu na:
 	 - v_0, v_end
 	 - a, a_stop
@@ -90,6 +95,8 @@ void action_init(action *action_ptr) {
 		move *src = &action_ptr->moves_ptr[mi];
 		move *prev = NULL;
 		move *next = NULL;
+		double move_phi = 0.0, prev_phi = 0.0;
+		double move_distance = 0.0, x_e = 0.0, y_e = 0.0;
 		if (mi > 0)
 			prev = &action_ptr->moves_ptr[mi - 1];
 		if (mi + 1 < action_ptr->num_of_moves)
@@ -111,22 +118,60 @@ void action_init(action *action_ptr) {
 			src->w_max = 0.0;
 			break;
 		case 1:	// go to xy
-			// TODO: tranzicije za sledecu kretnju:
-			//			- prethodna je 1 ili 2: prekopiraj vrednosti end -> 0
-			//			- sledeca je 1
-			//			- sledeca je 2
-			if (0 && prev && (prev->type == 1 || prev->type == 2)) {
+			if (transition) {
+				// TODO: tranzicije od prethodne kretnje:
+				//			- prethodna je 1 ili 2: prekopiraj vrednosti end -> 0
+				if (prev && (prev->type == 1 || prev->type == 2)) {
+					src->v_0 = prev->v_end;
+					src->a = 0.0;
+				} else {
+					src->v_0 = 0.0;
+					src->a = 0.0;
 
+					src->w_0 = 0.0;
+					src->alpha = 2 * A_MAX_ / L_;
+				}
+				// TODO: tranzicije za sledecu kretnju:
+				//			- sledeca je 1
+				//			- sledeca je 2
+				if (next && next->type == 1) {
+					src->v_end = fmin(src->v_des, next->v_des);
+				} else if (next && next->type == 2) {
+
+				} else {
+					src->v_end = 0.0;
+					src->a_stop = 0.0;
+
+					src->w_end = 0.0;
+					src->alpha_stop = 2 * A_MAX_ / L_;
+				}
 			} else {
 				src->v_0 = 0.0;
 				src->v_end = 0.0;
-				src->a = 0.0;
-				src->a_stop = 0.0;
+				src->a = A_MAX_;
+				src->a_stop = A_MAX_;
+				if (prev) {
+					x_e = src->x - prev->x;
+					y_e = src->y - prev->y;
+				} else {
+					x_e = src->x - first_x;
+					y_e = src->y - first_y;
+				}
+				move_distance = sqrt(x_e * x_e + y_e * y_e);
+				src->v_max = compute_v_peak(src->v_0, src->v_end, src->v_des,
+						src->a, src->a_stop, move_distance);
 
 				src->w_0 = 0.0;
 				src->w_end = 0.0;
 				src->alpha = 2 * A_MAX_ / L_;
 				src->alpha_stop = src->alpha;
+				if (prev)
+					prev_phi = prev->phi;
+				else
+					prev_phi = first_phi;
+				move_phi = src->phi - prev_phi;
+				src->w_max = compute_v_peak(src->w_0, src->w_end, src->w_des,
+						src->alpha, src->alpha_stop, move_phi);
 			}
 			break;
 		case 2:	// po kruznici
@@ -142,8 +187,16 @@ void action_init(action *action_ptr) {
 			src->w_end = 0.0;
 			src->alpha = 2 * A_MAX_ / L_;
 			src->alpha_stop = src->alpha;
+			if (prev)
+				prev_phi = prev->phi;
+			else
+				prev_phi = first_phi;
+			move_phi = src->phi - prev_phi;
+			src->w_max = compute_v_peak(src->w_0, src->w_end, src->w_des,
+					src->alpha, src->alpha_stop, move_phi);
 			break;
-		case 4:
+		case 4:	// bezier
+			break;
 		}
 		memcpy(&moves[mi], src, sizeof(move));
 	}
@@ -176,7 +229,12 @@ void control_loop(double dt) {
 	case 3:
 		rotate(dt);
 		break;
+	case 4:
+		// TODO: po bezieru
+		break;
 	}
+	v_ref_ = v_ref_ff_ + v_ref_fb_;
+	w_ref_ = w_ref_ff_ + w_ref_fb_;
 	prev_action_id_ = ctrl_action.id;
 }
 
@@ -195,17 +253,13 @@ void velocity_loop(double dt) {
 }
 
 static void rotate(double dt) {
-	phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
 	switch (moves[move_index].status) {
 	case 0:
 		reset_all_pids();
-		moves[move_index].w_max = compute_v_peak(moves[move_index].w_0,
-				moves[move_index].w_end, moves[move_index].w_des,
-				moves[move_index].alpha, moves[move_index].alpha_stop,
-				phi_error_);
 		moves[move_index].status = 1;
 		// namerno izbacen break
 	case 1:
+		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
 		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves[move_index].status = -1;
 		}
@@ -220,16 +274,10 @@ static void rotate(double dt) {
 static void go_to_xy(double dt) {
 	switch (moves[move_index].status) {
 	case 0:
+		reset_all_pids();
 		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves[move_index].status = 3;
 		} else {
-			phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
-			reset_all_pids();
-			moves[move_index].w_max = compute_v_peak(moves[move_index].w_0,
-					moves[move_index].w_end, moves[move_index].w_des,
-					moves[move_index].alpha, moves[move_index].alpha_stop,
-					phi_error_);
-			moves[move_index].v_max = 0.0;
 			moves[move_index].status = 1;
 		}
 		// namerno izbacen break
@@ -238,26 +286,12 @@ static void go_to_xy(double dt) {
 		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves[move_index].status = 2;
 		}
-		v_ref_ = 0;
+		v_ref_ff_ = 0;
 		w_ref_ff_ = trajectory_synthesis(moves[move_index].w_max, w_ref_ff_,
 				moves[move_index].w_end, moves[move_index].alpha,
 				moves[move_index].alpha_stop, phi_error_, dt);
 		break;
 	case 2:
-		x_error_ = x_ref_ - odom_.x;
-		y_error_ = y_ref_ - odom_.y;
-		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
-		moves[move_index].v_max = compute_v_peak(moves[move_index].v_0,
-				moves[move_index].v_end, moves[move_index].v_des,
-				moves[move_index].a, moves[move_index].a_stop, distance_);
-
-		phi_error_ = wrap(
-				atan2(y_error_, x_error_) - odom_.phi
-						+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
-		moves[move_index].w_max = compute_v_peak(moves[move_index].w_0,
-				moves[move_index].w_end, moves[move_index].w_des,
-				moves[move_index].alpha, moves[move_index].alpha_stop,
-				phi_error_);
 		reset_all_pids();
 		moves[move_index].status = 3;
 		// namerno izbacen break
@@ -279,12 +313,7 @@ static void go_to_xy(double dt) {
 				moves[move_index].status = -5;
 				break;
 			}
-// TODO: automatski backing umesto da ubije kretnju (sa proverom da li moze da se izvuce)
-//		} else if (obst_in_loop_budz_ && fabs(v_base_) < V_MIN_ * 2.0
-//				&& fabs(w_base_) < W_MIN_ * 2.0) {
-//			movement_state_ = -4;
-//			break;
-		} else if (stacked(STACKED_TIME_, odom_.v, V_MIN_STACKED_, 1.0 / dt_,
+		} else if (stacked(STACKED_TIME_, odom_.v, V_MIN_STACKED_, 1.0 / dt,
 				&stacked_cnt_)) {
 			moves[move_index].status = -3;
 			break;
@@ -293,10 +322,11 @@ static void go_to_xy(double dt) {
 		v_ref_ff_ = trajectory_synthesis(moves[move_index].v_max, v_ref_ff_,
 				moves[move_index].v_end, moves[move_index].a,
 				moves[move_index].a_stop, distance_, dt);
+		w_ref_ff_ = 0.0;
 		double phi_err_mod_ = clamp(
 				(distance_ - D_SHORT_TOL_) / (D_LONG_TOL_ - D_SHORT_TOL_), 0.0,
 				1.0) * phi_error_;
-		w_ref_ff_ = calc_pid(&phi_loop, phi_err_mod_, dt);
+		w_ref_fb_ = calc_pid(&phi_loop, phi_err_mod_, dt);
 		break;
 	}
 }
