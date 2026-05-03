@@ -123,13 +123,8 @@ void action_init(action *action_ptr) {
 				//			- prethodna je 1 ili 2: prekopiraj vrednosti end -> 0
 				if (prev && (prev->type == 1 || prev->type == 2)) {
 					src->v_0 = prev->v_end;
-					src->a = 0.0;
 				} else {
-					src->v_0 = 0.0;
-					src->a = 0.0;
-
-					src->w_0 = 0.0;
-					src->alpha = 2 * A_MAX_ / L_;
+					src->v_0 = prev->v_end;
 				}
 				// TODO: tranzicije za sledecu kretnju:
 				//			- sledeca je 1
