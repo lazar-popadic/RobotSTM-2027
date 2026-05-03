@@ -130,7 +130,7 @@ set_motor_r_dir(int8_t dir);
 void
 odometry_init();
 void
-update_odom();
+update_odom(double dt);
 pose_2D_stamped
 get_odom();
 

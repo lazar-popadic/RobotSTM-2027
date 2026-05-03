@@ -14,7 +14,7 @@ static double dt_ = 0.001;
 void time_ISR()	// 1ms
 {
 	sys_time_ms++;
-	update_odom();
+	update_odom(dt_);
 	ctrl_cnt ++;
 	if (ctrl_cnt >= ctrl_psc)
 	{

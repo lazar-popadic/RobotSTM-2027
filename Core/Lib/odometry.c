@@ -34,20 +34,21 @@ odometry_init ()
 }
 
 void
-update_odom ()
+update_odom (double dt)
 {
-	v_r_diff = cnt_difference (&htim5, &enc_r_sum);			// [inc/ms]
+	// TODO: proveri da li cnt_difference dobro hendluje over/underflow (da nije to mozda izvor greske)
+	v_r_diff = cnt_difference (&htim5, &enc_r_sum);					// [inc]
 	v_l_diff = cnt_difference (&htim3, &enc_l_sum);
-	v_right = -enc_velocity (v_r_diff, 0.001, 8192) * d_odom_right;
-	v_left = enc_velocity (v_l_diff, 0.001, 8192) * d_odom_left;
+	v_right = enc_velocity (v_r_diff, dt, 8192) * d_odom_right;		// [m/s]
+	v_left = enc_velocity (v_l_diff, dt, 8192) * d_odom_left;
 
-	odom.v = (v_right + v_left) * 0.5;									// [m/s]
-	odom.w = (v_right - v_left) * L_wheel_recip;				// [rad/s]
-	mid_angle = (odom.phi + odom.w * 0.005);						// [rad + 0.5*rad/s * 0.001s = rad]
+	odom.v = (v_right + v_left) * 0.5;								// [m/s]
+	odom.w = (v_right - v_left) * L_wheel_recip;					// [rad/s]
+	mid_angle = (odom.phi + odom.w * 0.5 * dt);						// [rad + rad/s * s = rad]
 
-	odom.x += odom.v * cos (mid_angle) * 0.001;									// [mm/ms * 1ms = mm]
-	odom.y += odom.v * sin (mid_angle) * 0.001;
-	odom.phi += odom.w * 0.001;													// [0.001s * rad/s = rad]
+	odom.x += odom.v * cos (mid_angle) * dt;						// [m/s * s = m]
+	odom.y += odom.v * sin (mid_angle) * dt;
+	odom.phi += odom.w * dt;										// [s * rad/s = rad]
 
 	wrap2Pi (&odom.phi);
 	odom.time_ms = get_time();
