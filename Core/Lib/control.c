@@ -21,6 +21,7 @@ uint8_t move_index = 0;
 uint16_t prev_action_id_ = 0xffff;
 double first_x = 0.0, first_y = 0.0, first_phi = 0.0;
 uint8_t transition = 0;
+int8_t ctrl_move_type = -1;
 
 int8_t direction_;
 static pose_2D_stamped odom_;
@@ -68,6 +69,7 @@ void action_init(action *action_ptr) {
 	first_x = get_odom().x;
 	first_y = get_odom().y;
 	first_phi = get_odom().phi;
+	// TODO: mora ovo da ucita iz poruke: ctrl_num_of_moves
 	/*
 	 TODO: uradi tranzicije (na osnovu referentnih vrednosti idealnih situacija))
 	 uticu na:
@@ -203,12 +205,16 @@ void control_loop(double dt) {
 	if (prev_action_id_ != ctrl_action.id)
 		action_init(&ctrl_action);
 
-	if (moves[move_index].status < 0)
+	if (moves[move_index].status < 0 && move_index < ctrl_num_of_moves)
 		move_index++;
-	if (move_index >= ctrl_num_of_moves)
+	if (move_index >= ctrl_num_of_moves) {
 		ctrl_action.status = -1;
+		ctrl_move_type = -1;
+	}
+	else
+		ctrl_move_type = moves[move_index].type;
 
-	switch (moves[move_index].type) {
+	switch (ctrl_move_type) {
 	case -1:
 		stop();
 		break;
@@ -328,7 +334,7 @@ static void go_to_xy(double dt) {
 
 // TODO: proveri za status
 static void stop() {
-	moves[move_index].status = 0;
+	moves[move_index].status = -1;
 	v_ref_ = 0;
 	w_ref_ = 0;
 	stacked_cnt_ = 0;
@@ -342,6 +348,7 @@ static void stop() {
 static void disassemble() {
 	stop();
 	pwm_kill();
+	moves[move_index].status = 1;
 }
 
 static void reset_all_pids() {
