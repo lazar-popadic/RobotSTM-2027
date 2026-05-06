@@ -205,13 +205,14 @@ void control_loop(double dt) {
 	if (prev_action_id_ != ctrl_action_.id)
 		action_init(&ctrl_action_);
 
-	if (moves_[move_index_].status < 0 && move_index_ < ctrl_num_of_moves_)
-		move_index_++;
+	if (move_index_ < ctrl_num_of_moves_) {
+		if (moves_[move_index_].status < 0)
+			move_index_++;
+	}
 	if (move_index_ >= ctrl_num_of_moves_) {
 		ctrl_action_.status = -1;
 		ctrl_move_type_ = -1;
-	}
-	else
+	} else
 		ctrl_move_type_ = moves_[move_index_].type;
 
 	switch (ctrl_move_type_) {
@@ -335,8 +336,8 @@ static void go_to_xy(double dt) {
 // TODO: proveri za status
 static void stop() {
 	moves_[move_index_].status = -1;
-	v_ref_ = 0;
-	w_ref_ = 0;
+	v_ref_ = 0.0;
+	w_ref_ = 0.0;
 	stacked_cnt_ = 0;
 	x_ref_ = odom_.x;
 	y_ref_ = odom_.y;
