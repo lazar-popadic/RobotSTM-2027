@@ -274,6 +274,11 @@ static void rotate(double dt) {
 }
 
 static void go_to_xy(double dt) {
+	x_error_ = x_ref_ - odom_.x;
+	y_error_ = y_ref_ - odom_.y;
+	phi_error_ = wrap(
+			atan2(y_error_, x_error_) - odom_.phi
+					+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
 	switch (moves_[move_index_].status) {
 	case 0:
 		reset_all_pids();
@@ -284,7 +289,6 @@ static void go_to_xy(double dt) {
 		}
 		// namerno izbacen break
 	case 1:
-		phi_error_ = wrap(phi_ref_ - odom_.phi, -M_PI, M_PI);
 		if (fabs(phi_error_) < PHI_TOL_ && fabs(odom_.w) < W_MIN_) {
 			moves_[move_index_].status = 2;
 		}
@@ -298,11 +302,6 @@ static void go_to_xy(double dt) {
 		moves_[move_index_].status = 3;
 		// namerno izbacen break
 	case 3:
-		x_error_ = x_ref_ - odom_.x;
-		y_error_ = y_ref_ - odom_.y;
-		phi_error_ = wrap(
-				atan2(y_error_, x_error_) - odom_.phi
-						+ (direction_ - 1) * M_PI * 0.5, -M_PI, M_PI);
 		distance_ = sqrt(x_error_ * x_error_ + y_error_ * y_error_);
 		distance_proj_ = distance_ * cos(phi_error_);
 
